@@ -1,0 +1,35 @@
+graph TD
+  subgraph Oceanus_MGMT["Oceanus 管理 / Management"]
+    CREATE["创建项目目录<br/>Create /projects/{id}/"]
+    DOCKER["管理 Docker 容器<br/>启动/停止/恢复"]
+    MONITOR["监控 tide-data/<br/>提取已完成资产"]
+  end
+
+  subgraph PROJECT_DIR["项目目录 /projects/{id}/<br/>Project Directory"]
+    TDATA["tide-data/ ← Skill 管理"]
+    TDATA_SESS["sessions/<br/>讨论会话 JSON"]
+    TDATA_PRD["prds/<br/>生成的 PRD"]
+    TDATA_ARC["archive/<br/>已归档"]
+    TDATA_INDEX[".index.json<br/>会话摘要索引"]
+    DOTENV[".env<br/>环境变量"]
+    DOTCLAUDE[".claude/<br/>MCP 配置"]
+  end
+
+  subgraph SKILL["Skill 职责 / Responsibilities"]
+    WRITE["管理工作文件<br/>Manage tide-data/"]
+    CONTROL["控制工作流中间产物<br/>Workflow artifacts"]
+    PUSH["通过 MCP 推送<br/>PRD 到知识库"]
+  end
+
+  subgraph SHARED["共享层 / Shared"]
+    NPM["public npm packages<br/>DeepStorm 等"]
+  end
+
+  Oceanus_MGMT --> PROJECT_DIR
+  PROJECT_DIR --> SKILL
+  SHARED --> SKILL
+
+  TDATA --> TDATA_SESS
+  TDATA --> TDATA_PRD
+  TDATA --> TDATA_ARC
+  TDATA --> TDATA_INDEX

@@ -1,0 +1,93 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/sweep-mcp-hook.sh"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/reef-intent-detect.sh"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/reef-block-dangerous.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/reef-protect-files.sh"
+          },
+          {
+            "type": "prompt",
+            "timeout": 5,
+            "prompt": "You are about to write or edit a source file. The following core rules apply based on the file extension. You MUST follow the relevant rules for your file type.\n\n## 🔴 Core Coding Rules (must follow)\n\n### Java\n1. Use @Getter @AllArgsConstructor for event/POJO classes; NEVER use @Data\n2. NEVER use @Autowired field injection; always use constructor injection (@RequiredArgsConstructor)\n3. Use abstract method instead of instanceof chain for type dispatch\n4. Use formatted() / Text Block for string formatting; never use + concatenation\n5. Use @RequiredArgsConstructor for Service/Controller; @Getter @NoArgsConstructor(access = PROTECTED) for Entity\n\n### Python\n1. Use f-strings; never use % or .format()\n2. snake_case for functions/variables; PascalCase for classes\n3. Always annotate return types and parameter types (mypy must pass)\n4. Use is / is not for None comparison; never use == None\n5. Use Enum / Protocol / abstract method instead of isinstance() chain\n\n### TypeScript\n1. Standalone + OnPush + inject() (Angular) / Function components + hooks (React) / <script setup lang=\"ts\"> (Vue)\n2. Use output() instead of @Output() (Angular) / custom hooks over lifecycle methods (React) / composables (Vue)\n3. Use signal() / computed() for reactive state management\n4. Use loadComponent for lazy-loaded routes\n5. Use interface for Props / Entity types\n\n## 📖 Full Reference\nLoad the reef-style-backend or reef-style-frontend skill for the complete coding standard.\n\n## ✅ Self-Verification\nBefore writing code, first output `✅ [STYLE] confirmed {language} rules` to acknowledge you have read and will follow the rules above."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/reef-auto-format.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/reef-code-style-verify.sh",
+            "async": true,
+            "statusMessage": "Verifying code style..."
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/reef-run-tests.sh",
+            "if": "Edit(*.ts)|Write(*.ts)",
+            "async": true,
+            "statusMessage": "Running tests..."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/reef-run-tests.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

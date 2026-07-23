@@ -1,0 +1,6 @@
+graph TD
+  GOLD["金标数据集（5 条 / Skill，手工标注）"]
+  GOLD --> EXEC["DeepStorm Skill 执行 → 产出结果"]
+  EXEC --> JUDGE["Judge LLM（独立模型）→ 对比评分"]
+  JUDGE --> SCORE["{ score: 0-100, dimensions: [...], reason: '...' }"]
+  SCORE --> EVAL_DB[("PostgreSQL Evaluation 表")]

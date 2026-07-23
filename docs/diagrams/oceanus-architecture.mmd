@@ -1,0 +1,42 @@
+graph TD
+  subgraph Frontend["前端 / Frontend (Angular + PrimeNG)"]
+    UI["REST API + SSE / EventStream"]
+  end
+
+  subgraph Oceanus["Oceanus 编排层 / Orchestrator (NestJS)"]
+    PM["Project/Session Manager<br/>项目管理"]
+    SSE["SSE Bridge<br/>SSE 桥接"]
+    CW["Context Windower<br/>上下文管理"]
+    AE["Asset Extractor<br/>资产提取"]
+    MR["Model Router<br/>模型路由"]
+    EV["Evaluation<br/>质量评估"]
+  end
+
+  subgraph SDK["Claude Agent SDK (TS)"]
+    Q["query() loop<br/>tool_use 循环"]
+    SK["Skills: DeepStorm<br/>原生 SDK Skills"]
+    MCP["MCP: Jira / Feishu<br/>外部服务"]
+    ST["Streaming Events<br/>→ OTel Spans"]
+    SS["Session Store<br/>→ Oceanus DB"]
+  end
+
+  subgraph DS["DeepStorm (npm package)"]
+    TD["tide-discuss<br/>需求讨论"]
+    TP["tide-prd<br/>PRD 生成"]
+    SM["SKILL.md 行为指令<br/>Behavior Instructions"]
+  end
+
+  subgraph WS["Project Workspace<br/>项目目录 /projects/{id}/"]
+    TDATA["tide-data/<br/>sessions / prds / archive"]
+    ENV[".env"]
+  end
+
+  UI -->|"POST /api/v1/chat"| PM
+  PM --> CW --> MR --> Q
+  Q -->|"stream_event"| SSE -->|"SSE"| UI
+  Q --> SDK
+  SK --> DS
+  SM --> SK
+  Q -->|"读/写"| TDATA
+  Q --> MCP
+  Q -->|"ResultMessage"| AE

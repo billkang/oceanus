@@ -1,0 +1,328 @@
+@import "tailwindcss";
+@import "primeicons/primeicons.css";
+
+/* ───────────────────────────────────────────
+   Oceanus 设计系统 — Indigo 主题
+   灵感: DeepStorm AI 产品协作平台
+   ─────────────────────────────────────────── */
+
+@theme {
+  /* 主色调 — 靛蓝→紫罗兰渐变 */
+  --color-indigo-50: #EEF2FF;
+  --color-indigo-100: #E0E7FF;
+  --color-indigo-200: #C7D2FE;
+  --color-indigo-300: #A5B4FC;
+  --color-indigo-400: #818CF8;
+  --color-indigo-500: #6366F1;
+  --color-indigo-600: #4F46E5;
+  --color-violet-400: #A78BFA;
+  --color-violet-500: #8B5CF6;
+  --color-violet-600: #7C3AED;
+
+  /* 中性色 — slate 系 */
+  --color-slate-50: #F8FAFC;
+  --color-slate-100: #F1F5F9;
+  --color-slate-200: #E2E8F0;
+  --color-slate-300: #CBD5E1;
+  --color-slate-400: #94A3B8;
+  --color-slate-500: #64748B;
+  --color-slate-600: #475569;
+  --color-slate-700: #334155;
+  --color-slate-800: #1E293B;
+  --color-slate-900: #0F172A;
+
+  /* 强调色 */
+  --color-rose: #F43F5E;
+  --color-indigo-accent: #6366F1;
+  --color-amber: #F59E0B;
+
+  /* 字体 */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* 全局 */
+html {
+  font-family: var(--font-sans);
+  height: 100%;
+}
+
+app-root {
+  display: block;
+}
+
+body {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #eef2ff 100%);
+  color: var(--color-slate-800);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  margin: 0;
+  font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
+}
+
+/* ─── 自定义滚动条 ─── */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-indigo-200);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-indigo-300);
+}
+.custom-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-indigo-200) transparent;
+}
+
+/* ─── 动画 ─── */
+
+/* 打字机光标 */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.typing-cursor::after {
+  content: '|';
+  animation: blink 0.8s infinite;
+  color: var(--color-indigo-400);
+  font-weight: 700;
+}
+
+/* 淡入动画 */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* 消息气泡出现动画 */
+@keyframes messageIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-message-in {
+  animation: messageIn 0.25s ease-out;
+}
+
+/* AI 流式输出波纹 */
+@keyframes wave-pulse {
+  0%, 100% { transform: scaleY(0.4); opacity: 0.6; }
+  50% { transform: scaleY(1); opacity: 1; }
+}
+.animate-wave-pulse {
+  animation: wave-pulse 1.2s ease-in-out infinite;
+}
+
+/* Toast 滑入 */
+@keyframes slide-in-right {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+.animate-slide-in {
+  animation: slide-in-right 0.3s ease-out;
+}
+
+/* ─── 玻璃拟态 ─── */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(99, 102, 241, 0.08);
+}
+
+.glass-strong {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(99, 102, 241, 0.12);
+}
+
+/* 发光按钮 */
+.btn-glow {
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.25), 0 4px 12px rgba(99, 102, 241, 0.15);
+}
+.btn-glow:hover {
+  box-shadow: 0 0 30px rgba(99, 102, 241, 0.4), 0 6px 16px rgba(99, 102, 241, 0.25);
+}
+
+/* 极光流动动画 */
+@keyframes auroraFlow {
+  0% {
+    filter: hue-rotate(0deg) saturate(1);
+    transform: scale(1) translateY(0);
+  }
+  25% {
+    filter: hue-rotate(15deg) saturate(1.15);
+    transform: scale(1.05) translateY(-1%);
+  }
+  50% {
+    filter: hue-rotate(-10deg) saturate(1.05);
+    transform: scale(1.02) translateY(0.5%);
+  }
+  75% {
+    filter: hue-rotate(10deg) saturate(1.2);
+    transform: scale(1.04) translateY(-0.5%);
+  }
+  100% {
+    filter: hue-rotate(0deg) saturate(1);
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* ─── Markdown 内容样式 ─── */
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3 {
+  font-weight: 600;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+  line-height: 1.3;
+}
+.markdown-content h1 { font-size: 1.15em; color: var(--color-slate-800); }
+.markdown-content h2 { font-size: 1.05em; }
+.markdown-content h3 { font-size: 1em; }
+.markdown-content p { margin-bottom: 0.6em; line-height: 1.65; }
+.markdown-content ul,
+.markdown-content ol { padding-left: 1.5em; margin-bottom: 0.6em; }
+.markdown-content li { margin-bottom: 0.2em; }
+.markdown-content code {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  background: var(--color-slate-100);
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+}
+.markdown-content pre {
+  background: var(--color-slate-900);
+  color: #E2E8F0;
+  padding: 1em;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin-bottom: 0.6em;
+}
+.markdown-content pre code {
+  background: none;
+  padding: 0;
+  color: inherit;
+  font-size: 0.8em;
+}
+.markdown-content blockquote {
+  border-left: 3px solid var(--color-indigo-400);
+  padding-left: 1em;
+  margin-left: 0;
+  margin-bottom: 0.6em;
+  color: var(--color-slate-500);
+}
+.markdown-content hr {
+  border: none;
+  border-top: 1px solid var(--color-slate-200);
+  margin: 1em 0;
+}
+.markdown-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-bottom: 0.6em;
+  font-size: 0.9em;
+}
+.markdown-content th,
+.markdown-content td {
+  border: 1px solid var(--color-slate-200);
+  padding: 0.4em 0.6em;
+  text-align: left;
+}
+.markdown-content th {
+  background: var(--color-slate-100);
+  font-weight: 600;
+}
+.markdown-content strong { font-weight: 600; }
+.markdown-content a {
+  color: var(--color-indigo-500);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.markdown-content a:hover {
+  color: var(--color-indigo-600);
+}
+
+/* ─── 组件工具类 ─── */
+
+/* 品牌渐变按钮 — 用于 p-button styleClass */
+.btn-gradient {
+  background: linear-gradient(to right, #6366F1, #8B5CF6) !important;
+  border: none !important;
+  color: white !important;
+  border-radius: 0.75rem !important;
+  box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.2) !important;
+}
+.btn-gradient:hover:not(:disabled) {
+  background: linear-gradient(to right, #818CF8, #A78BFA) !important;
+}
+
+/* 次要按钮 — 用于 p-button styleClass */
+.btn-secondary {
+  border-radius: 0.75rem !important;
+  border: 1px solid #E0E7FF !important;
+  background: rgba(255, 255, 255, 0.8) !important;
+  color: #374151 !important;
+  backdrop-filter: blur(12px) !important;
+}
+.btn-secondary:hover {
+  background: white !important;
+  border-color: #C7D2FE !important;
+}
+
+/* 删除按钮 — 用于 p-button styleClass */
+.btn-danger {
+  border-radius: 0.75rem !important;
+  background: linear-gradient(to right, #EF4444, #F43F5E) !important;
+  border: none !important;
+  color: white !important;
+  box-shadow: 0 10px 15px -3px rgba(239, 68, 68, 0.2) !important;
+}
+.btn-danger:hover:not(:disabled) {
+  background: linear-gradient(to right, #F87171, #FB7185) !important;
+}
+
+/* 图标盒子尺寸 */
+.icon-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.icon-box-sm { width: 2rem; height: 2rem; border-radius: 0.5rem; }
+.icon-box-md { width: 2.5rem; height: 2.5rem; border-radius: 0.75rem; }
+.icon-box-lg { width: 3rem; height: 3rem; border-radius: 0.75rem; }
+.icon-box-xl { width: 4rem; height: 4rem; border-radius: 1rem; }
+
+/* ─── 装饰性渐变背景 — 供 Login 页面使用 ─── */
+.bg-glow-indigo {
+  background: radial-gradient(circle, color-mix(in srgb, var(--color-indigo-500) 10%, transparent) 0%, color-mix(in srgb, var(--color-indigo-500) 4%, transparent) 40%, transparent 70%);
+}
+.bg-glow-violet {
+  background: radial-gradient(circle, color-mix(in srgb, var(--color-violet-500) 8%, transparent) 0%, color-mix(in srgb, var(--color-violet-500) 3%, transparent) 40%, transparent 70%);
+}
+.bg-grid-indigo {
+  background-image: linear-gradient(color-mix(in srgb, var(--color-indigo-500) 50%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--color-indigo-500) 50%, transparent) 1px, transparent 1px);
+  background-size: 100px 100px;
+}
+.shadow-card-indigo {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 8px 24px color-mix(in srgb, var(--color-indigo-500) 6%, transparent), 0 24px 60px color-mix(in srgb, var(--color-indigo-500) 4%, transparent);
+}
+
+/* ─── PrimeNG 补丁 ─── */
+.p-message {
+  border-radius: 10px;
+}
+.p-confirmdialog .p-dialog-content {
+  border-radius: 16px;
+}
+.p-button.rounded-xl {
+  border-radius: 12px;
+}

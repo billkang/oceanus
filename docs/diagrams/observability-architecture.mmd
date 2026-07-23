@@ -1,0 +1,18 @@
+graph TD
+  SDK["SDK query()<br/>Agent 执行"] -->|"OTel Spans<br/>自动生成"| SPANS["观测数据"]
+  SPANS --> AL["agent.loop<br/>Agent 循环"]
+  SPANS --> TU["tool.use<br/>工具调用"]
+  SPANS --> LC["llm.call<br/>LLM 调用"]
+
+  SDK -->|"Oceanus 注入业务标签<br/>Business Tags"| BTAGS["业务标签"]
+  BTAGS --> PID["project.id<br/>项目 ID"]
+  BTAGS --> SID["session.id<br/>会话 ID"]
+  BTAGS --> SN["skill.name<br/>Skill 名称<br/>(如 tide-discuss)"]
+
+  SPANS --> OI["OpenInference<br/>开放推理格式"]
+  BTAGS --> OI
+  OI --> LF["Langfuse<br/>可观测性平台"]
+
+  SDK -->|"ResultMessage"| COST["total_cost_usd<br/>单次成本"]
+  COST --> DB[("PostgreSQL<br/>成本记录")]
+  DB --> UI["前端展示<br/>'本次对话花费 $0.XX'"]

@@ -1,0 +1,61 @@
+{
+  "reef": {
+    "techs": "frontend,backend",
+    "frontend": {
+      "framework": "angular",
+      "uiLibrary": "primeng",
+      "css": "tailwind",
+      "details": "none"
+    },
+    "backend": {
+      "language": "nodejs",
+      "nodejs": {
+        "orm": "prisma",
+        "ai": "claude-agent-sdk",
+        "details": "none"
+      },
+      "java": {
+        "details": "none"
+      },
+      "python": {
+        "details": "none"
+      }
+    }
+  },
+  "sweep": {
+    "e2eFramework": "playwright"
+  },
+  "installedSkills": [
+    "tide-discuss",
+    "reef-commit",
+    "reef-harden",
+    "reef-pr",
+    "reef-review",
+    "reef-scope",
+    "reef-start",
+    "reef-testcase",
+    "sweep-init",
+    "sweep-plan",
+    "sweep-run"
+  ],
+  "installedAt": "2026-07-22T08:19:43.313Z",
+  "mcpCapabilities": {
+    "issue_tracker": {
+      "available": false,
+      "providers": []
+    },
+    "knowledge_base": {
+      "available": false,
+      "providers": []
+    },
+    "design_tools": {
+      "available": false,
+      "providers": []
+    }
+  },
+  "installedMcpServers": [
+    "github",
+    "playwright",
+    "context7"
+  ]
+}

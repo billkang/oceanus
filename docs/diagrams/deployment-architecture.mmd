@@ -1,0 +1,13 @@
+graph LR
+  U["外网用户<br/>Browser"] --> N["Nginx<br/>反向代理"]
+  N -->|"/ → Angular SPA<br/>静态文件"| SPA["Angular SPA<br/>.html files"]
+  N -->|"/api → proxy_pass<br/>长连接 SSE"| O["Oceanus (NestJS)<br/>单进程多项目"]
+  O -->|"Project A<br/>query({cwd: '/data/A'})"| SDK_A["SDK Session A"]
+  O -->|"Project B<br/>query({cwd: '/data/B'})"| SDK_B["SDK Session B"]
+  O -->|"Project C<br/>query({cwd: '/data/C'})"| SDK_C["SDK Session C"]
+  O --> PG[("PostgreSQL<br/>统一外部实例")]
+  O --> LF["Langfuse<br/>可观测性<br/>Docker/Cloud"]
+
+  style SDK_A fill:#e1f5fe
+  style SDK_B fill:#e1f5fe
+  style SDK_C fill:#e1f5fe

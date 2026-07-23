@@ -1,0 +1,17 @@
+node_modules/
+.gradle/
+build/
+target/
+dist/
+.env
+*.log
+logs/
+.DS_Store
+__pycache__/
+*.pyc
+.idea/
+.vscode/
+*.iml
+.gstack/
+client/.angular/
+server/data/

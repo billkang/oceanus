@@ -1,0 +1,64 @@
+{
+  "sessionId": "tide-20260723-001",
+  "featureId": "HYBRID-SESSION-ARCH",
+  "brief": "SDK JSONL 存会话消息，数据库仅存 users/projects/sessions/assets 4 张表做映射",
+  "createdAt": "2026-07-23T00:00:00.000Z",
+  "status": "prd_ready",
+  "parent": "tide-20260722-001",
+  "supersededBy": null,
+  "services": {
+    "knowledgeBase": null,
+    "issueTracker": null
+  },
+  "steps": [
+    {
+      "role": "analyst",
+      "skipped": false,
+      "completedAt": "2026-07-23T00:00:00.000Z",
+      "summary": "讨论了 Oceanus MVP 的会话存储架构调整：利用 Claude Agent SDK 内置的 JSONL 会话持久化 + SessionStore 接口，替代自定义 messages 表的方案。最终确定数据库仅保存映射关系（users + projects + sessions + assets），完整消息记录由 SDK 管理。sessions 表极度精简，仅存元数据和 filePath。归档能力取消，改为物理删除（级联删 DB + JSONL 文件）。assets 表保留但扩展为 PRD + 关联 Jira 任务的通用资产表。",
+      "decisions": [
+        "messages 表砍掉，消息由 SDK JSONL 管理",
+        "sessions 表精简，仅存元数据（id/projectId/title/filePath/createdAt/updatedAt）",
+        "归档能力取消，改为物理删除（级联 DB + 文件）",
+        "assets 表保留，需记录 PRD 和关联的 Jira 任务",
+        "最终数据库 4 张表：users / projects / sessions / assets"
+      ],
+      "requirements": [
+        "sessions 表不需要存储消息内容和上下文 JSON",
+        "消息读取走 SDK 的 getSessionMessages() / listSessions()",
+        "删除会话时级联删除 DB 记录和 JSONL 文件",
+        "assets 支持 prd / jira_task 等类型"
+      ],
+      "checklist": [
+        {"item": "需求背景和业务目标", "done": true},
+        {"item": "目标用户画像", "done": true},
+        {"item": "核心痛点分析", "done": true},
+        {"item": "竞品和市场调研", "done": true},
+        {"item": "关键成功指标", "done": true}
+      ]
+    },
+    {
+      "role": "pm",
+      "skipped": false,
+      "completedAt": "2026-07-23T00:00:00.000Z",
+      "summary": "确认了本次架构调整的范围：仅修改 Oceanus MVP 中与会话存储相关的模块（Database Schema → Session Module → Chat Module → Asset Module），不涉及其他功能。messages 表移除带来的 API 变更需同步到联调方案的 AC 验证项中。",
+      "decisions": [
+        "本次变更仅涉及数据层和对应 API 层",
+        "其他模块（Auth/Project/Agent）不受影响",
+        "联调方案的 AC-9（归档）改为删除验证"
+      ],
+      "requirements": [
+        "Session API：去掉 archive 端点，增加 DELETE 端点",
+        "Chat API：消息持久化改由 SDK 管理，API 层仅做消息转发",
+        "Asset API：扩展 type 枚举，支持 jira_task"
+      ],
+      "checklist": [
+        {"item": "MVP 功能范围", "done": true},
+        {"item": "用户故事", "done": true},
+        {"item": "优先级排序", "done": true},
+        {"item": "验收标准", "done": true},
+        {"item": "边界与反例", "done": true}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+{"tide-20260723-001": {"sessionId":"tide-20260723-001","featureId":"HYBRID-SESSION-ARCH","brief":"SDK JSONL 存会话消息，数据库仅存 users/projects/sessions/assets 4 张表做映射","status":"prd_ready","createdAt":"2026-07-23T00:00:00.000Z","parent":"tide-20260722-001"}}

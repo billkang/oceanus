@@ -1,0 +1,80 @@
+{
+  "sessionId": "tide-20260722-001",
+  "featureId": "OCEANUS-AI-PLATFORM-V1",
+  "brief": "面向内部 PM 的 AI 中台 MVP，标准化需求讨论流程（想法诊断→PRD生成→方案对比）",
+  "generatedAt": "2026-07-22T17:50:00.000Z",
+  "participants": [
+    {"role": "analyst", "completedAt": "2026-07-22T17:25:00.000Z", "skipped": false},
+    {"role": "pm", "completedAt": "2026-07-22T17:30:00.000Z", "skipped": false},
+    {"role": "architect", "completedAt": "2026-07-22T17:35:00.000Z", "skipped": false},
+    {"role": "designer", "completedAt": "2026-07-22T17:40:00.000Z", "skipped": false},
+    {"role": "po", "completedAt": "2026-07-22T17:45:00.000Z", "skipped": false}
+  ],
+  "sections": {
+    "background": {
+      "summary": "公司内部医疗 B 端产品经理使用 Oceanus 平台，不超过 10 人，各层级都有。核心痛点是 PRD 质量参差不齐、PM 没想清楚就动手、边界条件遗漏导致开发返工。目标是实现格式/内容/流程三位一体标准化。现有工具（飞书/Confluence/Jira）只是容器，不解决流程问题。MVP 成功标准是 PM 能在站上顺畅完成工作。",
+      "decisions": [
+        "面向内部 PM，不做外部客户",
+        "不做量化指标追踪",
+        "现有工具只做容器，不解决流程问题"
+      ],
+      "analystRequirements": [
+        "AR-1: 格式标准化：统一 PRD 模板",
+        "AR-2: 内容标准化：思考深度有标准",
+        "AR-3: 流程标准化：诊断→PRD→评审"
+      ]
+    },
+    "userStories": [
+      "US-1: 作为产品经理，我想在平台上用对话的方式梳理一个模糊的需求，以便在写 PRD 之前把关键问题想清楚",
+      "US-2: 作为产品经理，我想在需求想清楚后一键生成结构化 PRD，以便拿给研发评审",
+      "US-3: 作为产品经理，我想对同一个需求的不同方案进行对比分析，以便选择最优方案",
+      "US-4: 作为产品经理，我想创建项目并管理多个会话，以便分类管理不同需求",
+      "US-5: 作为产品经理，我想查看历史会话记录，以便回顾之前的需求讨论"
+    ],
+    "functionalRequirements": [
+      {"id": "FR-1", "title": "登录页（测试账号）", "priority": "P0"},
+      {"id": "FR-2", "title": "项目列表展示", "priority": "P0"},
+      {"id": "FR-3", "title": "创建项目（名称+备注）", "priority": "P0"},
+      {"id": "FR-4", "title": "会话管理（创建/历史/归档）", "priority": "P0"},
+      {"id": "FR-5", "title": "三栏布局（历史/聊天/资产）", "priority": "P0"},
+      {"id": "FR-6", "title": "聊天消息 SSE 流式渲染", "priority": "P0"},
+      {"id": "FR-7", "title": "Tide-discuss 需求讨论工作流集成", "priority": "P0"},
+      {"id": "FR-8", "title": "资产面板（查看/下载/复制）", "priority": "P0"},
+      {"id": "FR-9", "title": "AI 文字状态反馈", "priority": "P0"},
+      {"id": "FR-10", "title": "用户确认交互（选项按钮+其他）", "priority": "P0"}
+    ],
+    "nonFunctionalRequirements": [
+      "可用性: 需满足基本可用标准，PM 能在站点上顺畅完成完整工作流",
+      "性能: AI 调用延迟可接受，关键是有状态反馈让用户感知进度",
+      "安全: MVP 阶段写死测试账号，LDAP/OIDC SSO 后续版本接入",
+      "可维护性: 使用 PrimeNG 默认风格，不做定制化 UI",
+      "兼容性: 桌面端浏览器正常使用"
+    ],
+    "acceptanceCriteria": [
+      {"id": "AC-1", "description": "用测试账号成功登录，看到项目列表"},
+      {"id": "AC-2", "description": "创建项目（名称+备注）后自动进入项目工作区"},
+      {"id": "AC-3", "description": "项目内自动创建一个新会话，进入聊天界面"},
+      {"id": "AC-4", "description": "在聊天中发送消息，触发 Tide-discuss 讨论流程"},
+      {"id": "AC-5", "description": "AI 处理过程中显示文字状态提示"},
+      {"id": "AC-6", "description": "SDK 需要确认时显示选项按钮 + 其他自由输入"},
+      {"id": "AC-7", "description": "讨论完成后 PRD 出现在右侧资产面板"},
+      {"id": "AC-8", "description": "资产面板中的 PRD 可下载 Markdown 和复制内容"},
+      {"id": "AC-9", "description": "左侧会话历史按时间倒序展示"},
+      {"id": "AC-10", "description": "会话支持归档操作"}
+    ],
+    "technicalPlan": "后端 NestJS 作为 Claude Agent SDK host 进程，SDK 直接执行 Tide-discuss 工作流。后端 6 个模块（Auth/Project/Session/Chat/Agent/Asset），数据库 5 张表（users/projects/sessions/messages/assets）。SDK 事件通过 SSE 推送到 Angular 前端。需锁定 Claude Agent SDK 特定版本确保 DeepSeek 兼容。用户交互闭环（SDK 确认→前端→回传）边做边验证。走 DeepSeek API，不部署本地模型。",
+    "uxSuggestions": "三栏布局：左侧会话历史（可折叠）、中间聊天+输入框、右侧资产面板（可折叠）。AI 运行中显示文字状态提示。SDK 确认时展示选项按钮+其他自由输入。PrimeNG 默认风格，不做定制。",
+    "releaseStrategy": "先小范围找 1-2 名资深 PM 试用，收集反馈迭代后全员推送。公司战略级产品，使用率不是问题，核心聚焦产品质量。"
+  },
+  "discussionRecords": [
+    {"role": "analyst", "completedAt": "2026-07-22T17:25:00.000Z", "summary": "讨论了 Oceanus MVP 的背景和定位：公司内部医疗 B 端产品经理使用，不超过 10 人，各层级都有…"},
+    {"role": "pm", "completedAt": "2026-07-22T17:30:00.000Z", "summary": "明确了 MVP 功能范围：引擎+前端+3 个 Skill 集成 Tide-discuss 工作流，不做 Agent/Skill 市场页…"},
+    {"role": "architect", "completedAt": "2026-07-22T17:35:00.000Z", "summary": "讨论了 MVP 技术实施：后端 NestJS 作为 Claude Agent SDK host 进程…"},
+    {"role": "designer", "completedAt": "2026-07-22T17:40:00.000Z", "summary": "确定了 MVP 前端交互流程：三栏布局、状态反馈、交互模式…"},
+    {"role": "po", "completedAt": "2026-07-22T17:45:00.000Z", "summary": "确认了核心业务价值是知识沉淀和研发效率提升…"}
+  ],
+  "openQuestions": [
+    "Claude Agent SDK 兼容 DeepSeek 的具体版本号需要确认",
+    "SDK 请求用户确认时的交互闭环（前端选择 → SDK）需要技术上验证"
+  ]
+}

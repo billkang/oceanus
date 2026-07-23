@@ -1,0 +1,177 @@
+# Oceanus 基础设施
+# 使用: docker compose up -d
+#
+# 包含:
+#   - PostgreSQL 17（主数据库）
+#   - Redis、ClickHouse、MinIO（Langfuse 3.x 依赖）
+#   - Langfuse 3.x（LLM 可观测性平台，Web + Worker）
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: oceanus-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_DB: oceanus
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root -d oceanus"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis（Langfuse 依赖）────────────────────────────────────
+  redis:
+    image: redis:8-alpine
+    container_name: oceanus-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - redis_data:/data
+
+  # ── ClickHouse（Langfuse 分析存储）────────────────────────────
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: oceanus-clickhouse
+    restart: unless-stopped
+    ports:
+      - "8123:8123"   # HTTP 接口（Langfuse 连接用）
+      - "9000:9000"   # Native 协议
+    environment:
+      CLICKHOUSE_USER: "default"
+      CLICKHOUSE_PASSWORD: "clickhouse"
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+
+  # ── MinIO（Langfuse S3 兼容存储）────────────────────────────
+  # Langfuse 3.x 强制要求 S3 兼容的对象存储用于存储事件跟踪数据。
+  minio:
+    image: minio/minio:latest
+    container_name: oceanus-minio
+    restart: unless-stopped
+    ports:
+      - "9100:9000"   # API 端口（Langfuse 连接用，用 9100 避免与 ClickHouse 冲突）
+      - "9101:9001"   # Web 控制台（console-address 改为 9001）
+    environment:
+      MINIO_ROOT_USER: "minio"
+      MINIO_ROOT_PASSWORD: "miniosecret"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: server /data --console-address ":9001"
+
+  # ── Langfuse Worker（异步事件处理器）─────────────────────────
+  # Langfuse 3.x 架构分离为 Web（API 接收）和 Worker（异步写入 DB）。
+  # Worker 从 Redis 队列读取事件引用，从 S3 加载原始数据，
+  # 写入 ClickHouse 和 Postgres。缺少 Worker 时事件会上传 S3
+  # 但不会出现在 API/UI 中。
+  langfuse-worker:
+    image: langfuse/langfuse-worker:3
+    container_name: oceanus-langfuse-worker
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql://root:123456@postgres:5432/oceanus"
+      CLICKHOUSE_URL: "http://clickhouse:8123"
+      CLICKHOUSE_MIGRATION_URL: "clickhouse://default:clickhouse@clickhouse:9000"
+      CLICKHOUSE_USER: "default"
+      CLICKHOUSE_PASSWORD: "clickhouse"
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+      NEXTAUTH_URL: "http://localhost:3001"
+      SALT: "change-me-to-another-random-salt"
+      TELEMETRY_ENABLED: "false"
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "true"
+      # Redis（Worker 使用 REDIS_HOST/PORT/AUTH 格式；当前 Redis 无密码，留空避免 AUTH 警告）
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      REDIS_AUTH: ""
+      # S3 事件存储配置（与 Web 容器一致）
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: "langfuse"
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: "us-east-1"
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: "minio"
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: "miniosecret"
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: "http://minio:9000"
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_EVENT_UPLOAD_PREFIX: "events/"
+
+  # ── Langfuse Web（LLM 可观测性平台）─────────────────────────
+  # LLM 可观测性平台，用于追踪 Claude Agent SDK 的调用链、
+  # 工具使用、Token 消耗等。首次启动后访问 http://localhost:3001
+  # 注册账号，然后在 Oceanus 的 .env 中配置 LANGFUSE_* 变量。
+  # 如果不需要，注释掉本节即可。
+  langfuse-web:
+    image: langfuse/langfuse:3
+    container_name: oceanus-langfuse
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql://root:123456@postgres:5432/oceanus"
+      REDIS_CONNECTION_STRING: "redis://redis:6379"
+      CLICKHOUSE_URL: "http://clickhouse:8123"
+      CLICKHOUSE_MIGRATION_URL: "clickhouse://default:clickhouse@clickhouse:9000"
+      CLICKHOUSE_USER: "default"
+      CLICKHOUSE_PASSWORD: "clickhouse"
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+      NEXTAUTH_SECRET: "change-me-to-a-random-secret"
+      NEXTAUTH_URL: "http://localhost:3001"
+      SALT: "change-me-to-another-random-salt"
+      TELEMETRY_ENABLED: "false"
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "true"
+      # MinIO S3 配置（Langfuse 3.x 强制要求 S3 兼容存储）
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: "langfuse"
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: "us-east-1"
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: "minio"
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: "miniosecret"
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: "http://minio:9000"
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_EVENT_UPLOAD_PREFIX: "events/"
+
+volumes:
+  postgres_data:
+  redis_data:
+  clickhouse_data:
+  minio_data:

@@ -1,0 +1,40 @@
+{
+  "mcpServers": {
+    "deepstorm-github": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "dotenv-cli",
+        "-e",
+        ".env",
+        "--",
+        "docker",
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "ghcr.io/github/github-mcp-server"
+      ]
+    },
+    "deepstorm-context7": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "dotenv-cli",
+        "-e",
+        ".env",
+        "--",
+        "npx",
+        "-y",
+        "@upstash/context7-mcp"
+      ]
+    },
+    "deepstorm-playwright": {
+      "type": "sse",
+      "url": "http://localhost:54321/sse"
+    }
+  }
+}
