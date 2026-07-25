@@ -38,7 +38,7 @@
     "sweep-plan",
     "sweep-run"
   ],
-  "installedAt": "2026-07-22T08:19:43.313Z",
+  "installedAt": "2026-07-25T12:15:26.778Z",
   "mcpCapabilities": {
     "issue_tracker": {
       "available": false,
@@ -53,9 +53,5 @@
       "providers": []
     }
   },
-  "installedMcpServers": [
-    "github",
-    "playwright",
-    "context7"
-  ]
+  "installedMcpServers": ["github", "playwright", "context7"]
 }

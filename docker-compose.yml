@@ -170,6 +170,77 @@ services:
       LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
       LANGFUSE_S3_EVENT_UPLOAD_PREFIX: "events/"
 
+  # ═══════════════════════════════════════════════════════════════
+  # App Profile 服务（--profile app）
+  # ═══════════════════════════════════════════════════════════════
+
+  server:
+    profiles: [app]
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: oceanus-server
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    environment:
+      DATABASE_URL: postgresql://root:123456@postgres:5432/oceanus
+      JWT_SECRET: dev-secret-change-in-production
+      CORS_ORIGIN: http://localhost
+      GLITCHTIP_DSN: http://glitchtip-web:8000/1
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  client:
+    profiles: [app]
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+    container_name: oceanus-client
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+
+  glitchtip-web:
+    profiles: [app]
+    image: glitchtip/glitchtip:6
+    container_name: oceanus-glitchtip-web
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://root:123456@postgres:5432/glitchtip
+      SECRET_KEY: change-me-to-a-random-secret
+      REDIS_URL: redis://redis:6379/0
+      PORT: 8000
+      GLITCHTIP_ENV: development
+      DYNO: web
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  glitchtip-worker:
+    profiles: [app]
+    image: glitchtip/glitchtip:6
+    container_name: oceanus-glitchtip-worker
+    restart: unless-stopped
+    command: ./manage.py runworker --scheduler
+    environment:
+      DATABASE_URL: postgresql://root:123456@postgres:5432/glitchtip
+      SECRET_KEY: change-me-to-a-random-secret
+      REDIS_URL: redis://redis:6379/0
+      PORT: 8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
 volumes:
   postgres_data:
   redis_data:

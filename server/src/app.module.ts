@@ -13,6 +13,7 @@ import { ProjectModule } from './project/project.module';
 import { SessionModule } from './session/session.module';
 import { ChatModule } from './chat/chat.module';
 import { AssetModule } from './asset/asset.module';
+import { HealthModule } from './health/health.module';
 
 /**
  * 应用根模块
@@ -44,17 +45,20 @@ import { AssetModule } from './asset/asset.module';
           targets: [
             // 开发环境：控制台美化输出
             ...(process.env.NODE_ENV !== 'production'
-              ? [{
-                  target: 'pino-pretty',
-                  options: { colorize: true, translateTime: 'HH:MM:ss', ignore: 'pid,hostname' },
-                  level: 'debug',
-                }]
-              : [{
-                  target: 'pino/file',
-                  options: { destination: 1 },
-                  level: 'warn',
-                }]
-            ),
+              ? [
+                  {
+                    target: 'pino-pretty',
+                    options: { colorize: true, translateTime: 'HH:MM:ss', ignore: 'pid,hostname' },
+                    level: 'debug',
+                  },
+                ]
+              : [
+                  {
+                    target: 'pino/file',
+                    options: { destination: 1 },
+                    level: 'warn',
+                  },
+                ]),
             // 始终写入文件
             {
               target: 'pino/file',
@@ -74,6 +78,7 @@ import { AssetModule } from './asset/asset.module';
     SessionModule,
     ChatModule,
     AssetModule,
+    HealthModule,
   ],
   controllers: [AppController],
   providers: [AppService, AllExceptionsFilter],

@@ -1,0 +1,66 @@
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  Step 1/7: lint-staged (prettier + eslint staged)"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+npx lint-staged || {
+  echo "❌ lint-staged 失败，commit 已中断"
+  exit 1
+}
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  Step 2/7: server 全量 lint 检查"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+pnpm --filter @oceanus/server lint || {
+  echo "❌ server lint 不通过，commit 已中断"
+  exit 1
+}
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  Step 3/7: client 全量 lint 检查"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+pnpm --filter @oceanus/client lint || {
+  echo "❌ client lint 不通过，commit 已中断"
+  exit 1
+}
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  Step 4/7: server 类型检查"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+pnpm --filter @oceanus/server typecheck || {
+  echo "❌ server 类型检查不通过，commit 已中断"
+  exit 1
+}
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  Step 5/7: client 类型检查"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+pnpm --filter @oceanus/client typecheck || {
+  echo "❌ client 类型检查不通过，commit 已中断"
+  exit 1
+}
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  Step 6/7: server 单元测试"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+pnpm --filter @oceanus/server test || {
+  echo "❌ server 单元测试不通过，commit 已中断"
+  exit 1
+}
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  Step 7/7: client 单元测试"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+# Node.js v25 ships a broken global localStorage (lacks getItem/setItem/clear);
+# --no-experimental-webstorage disables it so jsdom's Storage API takes over.
+NODE_OPTIONS='--no-experimental-webstorage' pnpm --filter @oceanus/client test || {
+  echo "❌ client 单元测试不通过，commit 已中断"
+  exit 1
+}
+
+echo ""
+echo "✅ 全部检查通过，允许 commit"

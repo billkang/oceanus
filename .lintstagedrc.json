@@ -1,0 +1,5 @@
+{
+  "*.{ts,js,html,css,json,md}": ["prettier --write"],
+  "server/**/*.ts": ["bash -c 'cd server && npx eslint --fix \"$@\"' --"],
+  "client/**/*.ts": ["bash -c 'cd client && npx eslint --fix \"$@\"' --"]
+}

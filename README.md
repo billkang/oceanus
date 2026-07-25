@@ -13,12 +13,12 @@ Oceanus 是一个基于 **Claude Agent SDK** 与 **DeepStorm** 构建的 AI 中�
 
 ### 前置条件
 
-| 工具 | 版本要求 | 用途 |
-|------|---------|------|
-| [Node.js](https://nodejs.org/) | >= 20 | 运行后端和前端 |
-| [pnpm](https://pnpm.io/installation) | >= 9 | 包管理 |
-| [Docker](https://docs.docker.com/engine/install/) | 最新 | 数据库和可观测性服务 |
-| [Claude Agent SDK](https://code.claude.com/docs/zh-CN/overview) | — | Claude Agent SDK 概述 |
+| 工具                                                            | 版本要求 | 用途                  |
+| --------------------------------------------------------------- | -------- | --------------------- |
+| [Node.js](https://nodejs.org/)                                  | >= 20    | 运行后端和前端        |
+| [pnpm](https://pnpm.io/installation)                            | >= 9     | 包管理                |
+| [Docker](https://docs.docker.com/engine/install/)               | 最新     | 数据库和可观测性服务  |
+| [Claude Agent SDK](https://code.claude.com/docs/zh-CN/overview) | —        | Claude Agent SDK 概述 |
 
 ### 安装 Docker
 
@@ -76,7 +76,7 @@ make client-dev   # 终端 2 — 前端
 打开 `http://localhost:4300`，使用测试账号：
 
 | 用户名  | 密码       | 角色   |
-|---------|-----------|--------|
+| ------- | ---------- | ------ |
 | `admin` | `admin123` | 管理员 |
 
 ---
@@ -87,14 +87,18 @@ make client-dev   # 终端 2 — 前端
 
 ### 服务清单
 
-| 服务             | 容器名                     | 端口              | 用途                           |
-|-----------------|---------------------------|-------------------|-------------------------------|
-| PostgreSQL      | `oceanus-postgres`        | 5432              | 主数据库                       |
-| Redis           | `oceanus-redis`           | 6379              | Langfuse 缓存依赖              |
-| ClickHouse      | `oceanus-clickhouse`      | 8123 / 9000       | Langfuse 分析型存储             |
-| MinIO           | `oceanus-minio`           | 9100 / 9101       | Langfuse S3 兼容对象存储        |
-| Langfuse Worker | `oceanus-langfuse-worker` | —                 | Langfuse 异步事件处理器          |
-| Langfuse Web    | `oceanus-langfuse`        | 3001              | LLM 可观测性控制台              |
+| 服务             | 容器名                     | 端口        | 用途                     | Profile  |
+| ---------------- | -------------------------- | ----------- | ------------------------ | -------- |
+| PostgreSQL       | `oceanus-postgres`         | 5432        | 主数据库                 | （默认） |
+| Redis            | `oceanus-redis`            | 6379        | 缓存依赖                 | （默认） |
+| ClickHouse       | `oceanus-clickhouse`       | 8123 / 9000 | Langfuse 分析型存储      | （默认） |
+| MinIO            | `oceanus-minio`            | 9100 / 9101 | Langfuse S3 兼容对象存储 | （默认） |
+| Langfuse Worker  | `oceanus-langfuse-worker`  | —           | Langfuse 异步事件处理器  | （默认） |
+| Langfuse Web     | `oceanus-langfuse`         | 3001        | LLM 可观测性控制台       | （默认） |
+| Server           | `oceanus-server`           | 3100        | NestJS 后端              | `app`    |
+| Client           | `oceanus-client`           | 80          | Angular 前端 (Nginx)     | `app`    |
+| GlitchTip Web    | `oceanus-glitchtip-web`    | 8000        | 错误追踪控制台           | `app`    |
+| GlitchTip Worker | `oceanus-glitchtip-worker` | —           | 错误事件异步处理器       | `app`    |
 
 ### 日常命令
 
@@ -147,6 +151,52 @@ LANGFUSE_BASE_URL=http://localhost:3001
 
 ---
 
+## 接入 GlitchTip 错误追踪（可选）
+
+GlitchTip 是一个开源 Sentry 兼容的错误追踪平台，用于收集前后端运行时错误。
+
+### 前提
+
+启动 GlitchTip 及其依赖（Web + Worker）：
+
+```bash
+docker compose --profile app up -d glitchtip-web glitchtip-worker
+```
+
+> 首次启动需等待 PostgreSQL 自动建表（约 15-30 秒）。
+
+### 创建项目并获取 DSN
+
+1. 访问 `http://localhost:8000`，注册管理员账号（本地任意邮箱即可）
+2. 登录后，在 Organization 下 **Create Project**，选择平台类型任选（Sentry SDK 兼容）
+3. 创建完成后，进入 **Project Settings → Client Keys (DSN)**，复制 DSN 地址
+4. DSN 格式：`http://<key>@localhost:8000/<project_id>`
+
+### 配置环境变量
+
+编辑 `server/.env`：
+
+```env
+GLITCHTIP_DSN=http://<key>@localhost:8000/<project_id>
+```
+
+编辑 `client/src/environments/environment.ts`（开发环境）或 `environment.prod.ts`（生产环境）：
+
+```ts
+glitchtipDsn: 'http://<key>@localhost:8000/<project_id>',
+```
+
+### 验证
+
+1. 重启后端和前端服务
+2. 查看后端启动日志，确认 Sentry 初始化成功（无报错）
+3. 在聊天界面执行正常操作，或手动触发一个测试错误
+4. 访问 `http://localhost:8000` → 对应项目 → **Issues** 面板，确认错误已上报
+
+> **安全设计：** `GLITCHTIP_DSN` 留空时，`Sentry.init()` 不会调用，错误追踪静默跳过，不影响应用运行。
+
+---
+
 ## 脚本速查
 
 全部命令在项目根目录执行。Makefile 负责基础设施编排（Docker、数据库），开发命令委托给 pnpm。
@@ -185,16 +235,16 @@ make help           # 显示全部可用命令
 
 ## 技术栈
 
-| 领域       | 技术选型                     |
-|-----------|-----------------------------|
-| **前端**   | Angular 21 + PrimeNG + Tailwind CSS |
-| **后端**   | NestJS 11 (Node.js)          |
-| **ORM**    | Prisma 6                     |
-| **数据库** | PostgreSQL 17                |
-| **AI 框架** | Claude Agent SDK            |
-| **包管理** | pnpm (workspace)             |
-| **任务编排** | Makefile                    |
-| **可观测性** | Langfuse（可选）             |
+| 领域         | 技术选型                            |
+| ------------ | ----------------------------------- |
+| **前端**     | Angular 21 + PrimeNG + Tailwind CSS |
+| **后端**     | NestJS 11 (Node.js)                 |
+| **ORM**      | Prisma 6                            |
+| **数据库**   | PostgreSQL 17                       |
+| **AI 框架**  | Claude Agent SDK                    |
+| **包管理**   | pnpm (workspace)                    |
+| **任务编排** | Makefile                            |
+| **可观测性** | Langfuse（可选）                    |
 
 ---
 
@@ -241,15 +291,15 @@ oceanus/
 
 ## 文档层次
 
-| 文档 | 内容定位 |
-|------|---------|
-| **`README.md`** | 项目概览 + 开发环境搭建 + 日常操作命令 |
+| 文档                                  | 内容定位                                             |
+| ------------------------------------- | ---------------------------------------------------- |
+| **`README.md`**                       | 项目概览 + 开发环境搭建 + 日常操作命令               |
 | **`docs/oceanus-system-overview.md`** | 系统设计总览——业务背景、技术架构、技术选型、数据模型 |
-| **`docs/presentation.html`** | 项目演示文稿（可在浏览器中直接打开） |
-| **`docs/diagrams/`** | 架构图（Mermaid + SVG 渲染） |
+| **`docs/presentation.html`**          | 项目演示文稿（可在浏览器中直接打开）                 |
+| **`docs/diagrams/`**                  | 架构图（Mermaid + SVG 渲染）                         |
 
 ---
 
-> *"Oceanus — 万物之源，川流不息。每一个项目都是一条新的河流，从这同一个源头出发，奔向远方。"*
+> _"Oceanus — 万物之源，川流不息。每一个项目都是一条新的河流，从这同一个源头出发，奔向远方。"_
 >
 > 更多系统设计细节 → [docs/oceanus-system-overview.md](docs/oceanus-system-overview.md)

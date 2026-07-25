@@ -19,21 +19,34 @@ import { AgentService } from './agent.service';
           @for (agent of agents; track agent.id) {
             <div
               (click)="goDetail(agent.id)"
+              (keydown.enter)="goDetail(agent.id)"
+              tabindex="0"
+              role="button"
               class="group bg-white/70 backdrop-blur-sm border border-indigo-100/50 rounded-2xl p-6
                 hover:shadow-xl hover:shadow-indigo-500/5 hover:border-indigo-200
                   transition-all duration-300 cursor-pointer"
             >
               <div class="flex items-start gap-4">
-                <div class="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br
-                  from-indigo-500 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
-                    stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M12 8V4H8"/>
-                    <rect width="16" height="12" x="4" y="8" rx="2"/>
-                    <path d="M2 14h2"/>
-                    <path d="M20 14h2"/>
-                    <path d="M15 13v2"/>
-                    <path d="M9 13v2"/>
+                <div
+                  class="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br
+                  from-indigo-500 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/20"
+                >
+                  <svg
+                    width="24"
+                    height="24"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="white"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M12 8V4H8" />
+                    <rect width="16" height="12" x="4" y="8" rx="2" />
+                    <path d="M2 14h2" />
+                    <path d="M20 14h2" />
+                    <path d="M15 13v2" />
+                    <path d="M9 13v2" />
                   </svg>
                 </div>
                 <div class="flex-1 min-w-0">
@@ -48,12 +61,19 @@ import { AgentService } from './agent.service';
                   <span>·</span>
                   <span>{{ formatRelativeTime(agent.updatedAt) }}</span>
                 </div>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
                   class="text-gray-300 group-hover:text-indigo-500 group-hover:translate-x-0.5 transition-all"
                 >
-                  <line x1="5" y1="12" x2="19" y2="12"/>
-                  <polyline points="12 5 19 12 12 19"/>
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                  <polyline points="12 5 19 12 12 19" />
                 </svg>
               </div>
             </div>

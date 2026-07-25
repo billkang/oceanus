@@ -2,14 +2,31 @@
   "name": "oceanus",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.7.0",
   "description": "Oceanus MVP — AI-powered PM需求讨论平台",
   "scripts": {
-    "dev": "pnpm --filter @oceanus/server dev & pnpm --filter @oceanus/client start",
+    "dev": "pnpm --filter @oceanus/server start:dev & pnpm --filter @oceanus/client start",
     "build:server": "pnpm --filter @oceanus/server build",
     "build:client": "cd client && npx ng build",
     "lint": "pnpm --filter @oceanus/server lint && pnpm --filter @oceanus/client lint",
     "format": "prettier --check \"**/*.{ts,js,json,css,html}\"",
     "format:fix": "prettier --write \"**/*.{ts,js,json,css,html}\"",
-    "test": "pnpm --filter @oceanus/server test"
+    "test": "pnpm --filter @oceanus/server test",
+    "prepare": "husky",
+    "db:studio": "pnpm --filter @oceanus/server exec prisma studio",
+    "langfuse": "open http://localhost:3001",
+    "db:generate": "pnpm --filter @oceanus/server exec prisma generate",
+    "db:migrate": "pnpm --filter @oceanus/server exec prisma migrate dev",
+    "db:seed": "pnpm --filter @oceanus/server exec prisma db seed",
+    "db:reset": "pnpm --filter @oceanus/server exec prisma migrate reset",
+    "setup": "pnpm install && pnpm db:generate && pnpm db:migrate"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^21.2.1",
+    "@commitlint/config-conventional": "^21.2.0",
+    "eslint": "^9.0.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.2.0",
+    "prettier": "^3.4.0"
   }
 }

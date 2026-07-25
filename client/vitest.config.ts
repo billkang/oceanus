@@ -14,10 +14,7 @@ function inlineAngularTemplates(): import('vite').Plugin {
       const templatePath = resolve(id, '..', match[1]);
       try {
         const content = readFileSync(templatePath, 'utf-8');
-        return code.replace(
-          /templateUrl:\s*['"](.+?)['"]/,
-          `template: ${JSON.stringify(content)}`,
-        );
+        return code.replace(/templateUrl:\s*['"](.+?)['"]/, `template: ${JSON.stringify(content)}`);
       } catch {
         console.warn(`[inline-angular-templates] Failed to read: ${templatePath}`);
       }
@@ -34,8 +31,11 @@ export default defineConfig({
     environmentOptions: {
       jsdom: {
         url: 'http://localhost:4300',
+        storageQuota: 10_000_000,
       },
     },
     setupFiles: ['src/test-setup.ts'],
+    // Suppress localStorage-origin warnings in jsdom
+    env: {},
   },
 });

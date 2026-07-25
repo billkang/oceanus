@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        filter: ['@oceanus/server', '@oceanus/client']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter ${{ matrix.filter }} lint
+
+  typecheck:
+    needs: lint
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        filter: ['@oceanus/server', '@oceanus/client']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Generate Prisma client (server only)
+        if: matrix.filter == '@oceanus/server'
+        run: pnpm --filter ${{ matrix.filter }} exec prisma generate
+      - run: pnpm --filter ${{ matrix.filter }} typecheck
+
+  test:
+    needs: typecheck
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        filter: ['@oceanus/server', '@oceanus/client']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Generate Prisma client (server only)
+        if: matrix.filter == '@oceanus/server'
+        run: pnpm --filter ${{ matrix.filter }} exec prisma generate
+      - run: pnpm --filter ${{ matrix.filter }} test
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        filter: ['@oceanus/server', '@oceanus/client']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Generate Prisma client (server only)
+        if: matrix.filter == '@oceanus/server'
+        run: pnpm --filter ${{ matrix.filter }} exec prisma generate
+      - run: pnpm --filter ${{ matrix.filter }} build
