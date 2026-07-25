@@ -1,11 +1,5 @@
-import {
-  ExceptionFilter,
-  Catch,
-  ArgumentsHost,
-  HttpException,
-  HttpStatus,
-  Injectable,
-} from '@nestjs/common';
+import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import * as Sentry from '@sentry/node';
 import { Logger } from 'nestjs-pino';
 import type { Response } from 'express';
 
@@ -31,7 +25,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       if (typeof res === 'string') {
         message = res;
       } else if (typeof res === 'object' && res !== null) {
-        message = (res as Record<string, unknown>).message as string || message;
+        message = ((res as Record<string, unknown>).message as string) || message;
         if (Array.isArray(message)) {
           message = (message as string[])[0] || '请求参数错误';
         }
@@ -40,12 +34,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
       message = exception.message;
     }
 
-    // 记录 5xx 错误日志
+    // 记录 5xx 错误日志并上报 Sentry/GlitchTip
     if (status >= 500) {
-      this.logger.error(
-        `[${status}] ${message}`,
-        exception instanceof Error ? exception.stack : undefined,
-      );
+      this.logger.error(`[${status}] ${message}`, exception instanceof Error ? exception.stack : undefined);
+      Sentry.captureException(exception);
     }
 
     response.status(status).json({

@@ -1,3 +1,9 @@
+import type {
+  PostToolUseFailureHookInput,
+  PostToolUseHookInput,
+  SessionEndHookInput,
+  SessionStartHookInput,
+} from '@anthropic-ai/claude-agent-sdk';
 import { deleteSession, getSessionMessages, query } from '@anthropic-ai/claude-agent-sdk';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -111,42 +117,61 @@ export class AgentService {
 
     return {
       hooks: {
-        SessionStart: [{
-          hooks: [(input: any) => {
-            if (input?.session_id) {
-              lf.createTrace(input.session_id);
-            }
-            return Promise.resolve({ continue: true });
-          }],
-        }],
-        PostToolUse: [{
-          hooks: [(input: any) => {
-            if (input?.session_id) {
-              lf.createToolSpan(
-                input.session_id, input.tool_name, input.tool_input,
-                input.tool_response, input.duration_ms,
-              );
-            }
-            return Promise.resolve({ continue: true });
-          }],
-        }],
-        PostToolUseFailure: [{
-          hooks: [(input: any) => {
-            if (input?.session_id) {
-              lf.markToolError(input.session_id, input.tool_name, input.error);
-            }
-            return Promise.resolve({ continue: true });
-          }],
-        }],
-        SessionEnd: [{
-          hooks: [(input: any) => {
-            if (input?.session_id) {
-              // 只刷新数据到 Langfuse，不清理 Trace，以支持多轮对话续传
-              return lf.flushTrace(input.session_id).then(() => ({ continue: true }));
-            }
-            return Promise.resolve({ continue: true });
-          }],
-        }],
+        SessionStart: [
+          {
+            hooks: [
+              (input: SessionStartHookInput) => {
+                if (input?.session_id) {
+                  lf.createTrace(input.session_id);
+                }
+                return Promise.resolve({ continue: true });
+              },
+            ],
+          },
+        ],
+        PostToolUse: [
+          {
+            hooks: [
+              (input: PostToolUseHookInput) => {
+                if (input?.session_id) {
+                  lf.createToolSpan(
+                    input.session_id,
+                    input.tool_name,
+                    input.tool_input,
+                    input.tool_response,
+                    input.duration_ms,
+                  );
+                }
+                return Promise.resolve({ continue: true });
+              },
+            ],
+          },
+        ],
+        PostToolUseFailure: [
+          {
+            hooks: [
+              (input: PostToolUseFailureHookInput) => {
+                if (input?.session_id) {
+                  lf.markToolError(input.session_id, input.tool_name, input.error);
+                }
+                return Promise.resolve({ continue: true });
+              },
+            ],
+          },
+        ],
+        SessionEnd: [
+          {
+            hooks: [
+              (input: SessionEndHookInput) => {
+                if (input?.session_id) {
+                  // 只刷新数据到 Langfuse，不清理 Trace，以支持多轮对话续传
+                  return lf.flushTrace(input.session_id).then(() => ({ continue: true }));
+                }
+                return Promise.resolve({ continue: true });
+              },
+            ],
+          },
+        ],
       },
     };
   }

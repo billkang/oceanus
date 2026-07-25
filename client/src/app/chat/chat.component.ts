@@ -20,17 +20,38 @@ import type { SseEvent } from './chat.service';
 import { ChatService, SseEventType } from './chat.service';
 
 /* ── SSE 事件数据类型 ── */
-interface MessageStartData { content: string }
-interface MessageDeltaData { content: string }
-interface ToolInProgressData { status: string }
-interface ToolOptionsData { options: string[]; text: string }
-interface AssetReadyData { assetId: number }
-interface SessionCreatedData { sdkSessionId: string }
-interface TitleUpdatedData { sdkSessionId: string; title: string }
-interface ErrorEventData { message: string }
+interface MessageStartData {
+  content: string;
+}
+interface MessageDeltaData {
+  content: string;
+}
+interface ToolInProgressData {
+  status: string;
+}
+interface ToolOptionsData {
+  options: string[];
+  text: string;
+}
+interface AssetReadyData {
+  assetId: number;
+}
+interface SessionCreatedData {
+  sdkSessionId: string;
+}
+interface TitleUpdatedData {
+  sdkSessionId: string;
+  title: string;
+}
+interface ErrorEventData {
+  message: string;
+}
 
 /* ── 历史消息数据类型 ── */
-interface ContentBlock { type: string; text: string }
+interface ContentBlock {
+  type: string;
+  text: string;
+}
 
 /** SDK getSessionMessages 实际返回的 SessionMessage 结构 */
 interface SdkMessage {
@@ -171,8 +192,7 @@ export class ChatComponent implements OnDestroy {
     if (!container) return;
 
     const threshold = 80; // px from bottom
-    const atBottom =
-      container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
+    const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
     this.userScrolledUp = !atBottom;
     this.showScrollButton.set(this.userScrolledUp);
   }
@@ -190,7 +210,7 @@ export class ChatComponent implements OnDestroy {
       }
 
       case SseEventType.MessageStart:
-        this.messages.update(list => [
+        this.messages.update((list) => [
           ...list,
           {
             id: `assistant-${++this.messageIdCounter}`,
@@ -208,9 +228,10 @@ export class ChatComponent implements OnDestroy {
         this.messages.update((list) => {
           const last = list[list.length - 1];
           if (last && last.status === MessageStatus.Streaming) {
-            return list.map((m, i) => i === list.length - 1
-              ? { ...m, content: m.content + ((event.data as unknown as MessageDeltaData).content || '') }
-              : m,
+            return list.map((m, i) =>
+              i === list.length - 1
+                ? { ...m, content: m.content + ((event.data as unknown as MessageDeltaData).content || '') }
+                : m,
             );
           }
           return list;
@@ -223,10 +244,7 @@ export class ChatComponent implements OnDestroy {
         this.messages.update((list) => {
           const last = list[list.length - 1];
           if (last && last.status === MessageStatus.Streaming) {
-            return list.map((m, i) => (i === list.length - 1
-              ? { ...m, status: MessageStatus.Complete }
-              : m),
-            );
+            return list.map((m, i) => (i === list.length - 1 ? { ...m, status: MessageStatus.Complete } : m));
           }
           return list;
         });
@@ -249,11 +267,9 @@ export class ChatComponent implements OnDestroy {
         break;
 
       case SseEventType.ToolOptions: {
-        const options: string[] =
-          (event.data as unknown as ToolOptionsData).options || [];
-        const optionsText: string =
-          (event.data as unknown as ToolOptionsData).text || '';
-        this.messages.update(list => [
+        const options: string[] = (event.data as unknown as ToolOptionsData).options || [];
+        const optionsText: string = (event.data as unknown as ToolOptionsData).text || '';
+        this.messages.update((list) => [
           ...list,
           {
             id: `options-${++this.messageIdCounter}`,
@@ -290,13 +306,14 @@ export class ChatComponent implements OnDestroy {
         this.messages.update((list) => {
           const last = list[list.length - 1];
           if (last && last.status === MessageStatus.Streaming) {
-            return list.map((m, i) => i === list.length - 1
-              ? {
-                  ...m,
-                  status: MessageStatus.Error,
-                  errorMessage: (event.data as unknown as ErrorEventData).message,
-                }
-              : m,
+            return list.map((m, i) =>
+              i === list.length - 1
+                ? {
+                    ...m,
+                    status: MessageStatus.Error,
+                    errorMessage: (event.data as unknown as ErrorEventData).message,
+                  }
+                : m,
             );
           }
           return [
@@ -333,7 +350,7 @@ export class ChatComponent implements OnDestroy {
 
     const msgId = `user-${++this.messageIdCounter}`;
 
-    this.messages.update(list => [
+    this.messages.update((list) => [
       ...list,
       {
         id: msgId,
@@ -357,10 +374,9 @@ export class ChatComponent implements OnDestroy {
       projectId: this.activeSdkSessionId ? undefined : this.projectId(),
       onEvent: (event) => {
         if (!userMsgCompleted) {
-          this.messages.update(list => list.map(m => m.id === msgId
-            ? { ...m, status: MessageStatus.Complete }
-            : m,
-          ));
+          this.messages.update((list) =>
+            list.map((m) => (m.id === msgId ? { ...m, status: MessageStatus.Complete } : m)),
+          );
           userMsgCompleted = true;
         }
         this.handleSseEvent(event);
@@ -369,17 +385,15 @@ export class ChatComponent implements OnDestroy {
         this.isStreaming.set(false);
         this.abortController = null;
         if (!userMsgCompleted) {
-          this.messages.update(list => list.map(m => m.id === msgId
-            ? { ...m, status: MessageStatus.Complete }
-            : m,
-          ));
+          this.messages.update((list) =>
+            list.map((m) => (m.id === msgId ? { ...m, status: MessageStatus.Complete } : m)),
+          );
         }
       },
       onError: (errMsg) => {
-        this.messages.update(list => list.map(m => m.id === msgId
-          ? { ...m, status: MessageStatus.Error, errorMessage: errMsg }
-          : m,
-        ));
+        this.messages.update((list) =>
+          list.map((m) => (m.id === msgId ? { ...m, status: MessageStatus.Error, errorMessage: errMsg } : m)),
+        );
         this.isStreaming.set(false);
         this.abortController = null;
       },
@@ -404,7 +418,7 @@ export class ChatComponent implements OnDestroy {
   /** 重试发送失败的消息 */
   onRetry(msg: DisplayMessage): void {
     const list = this.messages();
-    const idx = list.findIndex(m => m.id === msg.id);
+    const idx = list.findIndex((m) => m.id === msg.id);
     let text = '';
     if (msg.role === MessageRole.User && msg.content) {
       text = msg.content;
@@ -421,10 +435,10 @@ export class ChatComponent implements OnDestroy {
     // 立即标记为流式中，与 send() 保持一致
     this.isStreaming.set(true);
 
-    this.messages.update(list => list.filter(m => m.id !== msg.id));
+    this.messages.update((list) => list.filter((m) => m.id !== msg.id));
 
     const newMsgId = `user-${++this.messageIdCounter}`;
-    this.messages.update(list => [
+    this.messages.update((list) => [
       ...list,
       {
         id: newMsgId,
@@ -443,10 +457,9 @@ export class ChatComponent implements OnDestroy {
       projectId: this.activeSdkSessionId ? undefined : this.projectId(),
       onEvent: (event) => {
         if (!retryMsgCompleted) {
-          this.messages.update(list => list.map(m => m.id === newMsgId
-            ? { ...m, status: MessageStatus.Complete }
-            : m,
-          ));
+          this.messages.update((list) =>
+            list.map((m) => (m.id === newMsgId ? { ...m, status: MessageStatus.Complete } : m)),
+          );
           retryMsgCompleted = true;
         }
         this.handleSseEvent(event);
@@ -455,17 +468,15 @@ export class ChatComponent implements OnDestroy {
         this.isStreaming.set(false);
         this.abortController = null;
         if (!retryMsgCompleted) {
-          this.messages.update(list => list.map(m => m.id === newMsgId
-            ? { ...m, status: MessageStatus.Complete }
-            : m,
-          ));
+          this.messages.update((list) =>
+            list.map((m) => (m.id === newMsgId ? { ...m, status: MessageStatus.Complete } : m)),
+          );
         }
       },
       onError: (errMsg) => {
-        this.messages.update(list => list.map(m => m.id === newMsgId
-          ? { ...m, status: MessageStatus.Error, errorMessage: errMsg }
-          : m,
-        ));
+        this.messages.update((list) =>
+          list.map((m) => (m.id === newMsgId ? { ...m, status: MessageStatus.Error, errorMessage: errMsg } : m)),
+        );
         this.isStreaming.set(false);
         this.abortController = null;
       },
@@ -474,9 +485,9 @@ export class ChatComponent implements OnDestroy {
 
   /** 用户选择选项（确认交互） */
   onOptionSelect(option: string): void {
-    this.messages.update(list => list.map(m => (
-      m.options && !m.selectedOption ? { ...m, selectedOption: option } : m
-    )));
+    this.messages.update((list) =>
+      list.map((m) => (m.options && !m.selectedOption ? { ...m, selectedOption: option } : m)),
+    );
 
     const sid = this.activeSdkSessionId;
     if (!sid) return;
@@ -492,9 +503,9 @@ export class ChatComponent implements OnDestroy {
         this.abortController = null;
       },
       onError: () => {
-        this.messages.update(list => list.map(m => (
-          m.selectedOption === option ? { ...m, selectedOption: undefined } : m
-        )));
+        this.messages.update((list) =>
+          list.map((m) => (m.selectedOption === option ? { ...m, selectedOption: undefined } : m)),
+        );
         this.isStreaming.set(false);
         this.abortController = null;
       },
@@ -567,7 +578,8 @@ export class ChatComponent implements OnDestroy {
     event.preventDefault();
     event.stopPropagation();
     if (!this.isStreaming() && event.dataTransfer) {
-      event.dataTransfer.dropEffect = 'copy';
+      const dt = event.dataTransfer;
+      dt.dropEffect = 'copy';
       this.dragOver.set(true);
     }
   }
@@ -634,17 +646,19 @@ export class ChatComponent implements OnDestroy {
 
   /** 转换 SDK SessionMessage 为 DisplayMessage 格式 */
   private convertHistoryToMessages(data: SdkMessage[]): DisplayMessage[] {
-    return data
-      .filter(msg => msg.type === 'user' || msg.type === 'assistant')
-      .map((msg: SdkMessage, index: number) => ({
-        id: `history-${index}`,
-        role: msg.type === 'user' ? MessageRole.User : MessageRole.Assistant,
-        content: this.extractTextContent(msg.message?.content ?? ''),
-        timestamp: Date.parse(msg.timestamp ?? msg.created_at ?? '') || Date.now(),
-        status: MessageStatus.Complete,
-      }))
-      // 过滤掉空白/零长度的消息（避免 SDK 空白 text block 产生的幽灵气泡）
-      .filter(m => m.content && m.content.trim().length > 0);
+    return (
+      data
+        .filter((msg) => msg.type === 'user' || msg.type === 'assistant')
+        .map((msg: SdkMessage, index: number) => ({
+          id: `history-${index}`,
+          role: msg.type === 'user' ? MessageRole.User : MessageRole.Assistant,
+          content: this.extractTextContent(msg.message?.content ?? ''),
+          timestamp: Date.parse(msg.timestamp ?? msg.created_at ?? '') || Date.now(),
+          status: MessageStatus.Complete,
+        }))
+        // 过滤掉空白/零长度的消息（避免 SDK 空白 text block 产生的幽灵气泡）
+        .filter((m) => m.content && m.content.trim().length > 0)
+    );
   }
 
   /** 从 SDK 消息格式提取文本 */

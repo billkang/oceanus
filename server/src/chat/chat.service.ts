@@ -1,4 +1,9 @@
-import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+import type {
+  SDKMessage,
+  SDKPromptSuggestionMessage,
+  SDKResultSuccess,
+  SDKSystemMessage,
+} from '@anthropic-ai/claude-agent-sdk';
 import { Injectable } from '@nestjs/common';
 import { Logger } from 'nestjs-pino';
 import { AgentService } from '../agent/agent.service';
@@ -30,20 +35,42 @@ export interface ConfirmStreamOptions {
 /**
  * 内容追踪器 — 在 mapper 和 main loop 之间传递块级状态，
  * 用于 Langfuse 记录 thinking / generation 内容。
+ *
+ * 使用方法而非直接赋值，避免 no-param-reassign 违规。
  */
-interface ContentTracker {
-  blockStack: string[];
+class ContentTracker {
+  blockStack: string[] = [];
   /** 当前 thinking 块已累积的文本 */
-  thinkingText: string;
+  thinkingText = '';
   /** mapper 在 thinking 块完成时写入，main loop 读取后清空 */
-  completedThinking: string | null;
+  completedThinking: string | null = null;
   /** mapper 在 text 块完成时写入（含完整文本），main loop 读取后清空 */
-  completedText: string | null;
+  completedText: string | null = null;
+
+  resetThinkingText(): void {
+    this.thinkingText = '';
+  }
+
+  appendThinkingText(text: string): void {
+    this.thinkingText += text;
+  }
+
+  markThinkingComplete(): void {
+    this.completedThinking = this.thinkingText;
+    this.thinkingText = '';
+  }
+
+  clearCompletedThinking(): void {
+    this.completedThinking = null;
+  }
+
+  clearCompletedText(): void {
+    this.completedText = null;
+  }
 }
 
 @Injectable()
 export class ChatService {
-
   /** 活跃的 SDK Query 引用，用于中断/取消 */
   private readonly activeQueries = new Map<string, { interrupt: () => Promise<unknown> }>();
 
@@ -76,7 +103,7 @@ export class ChatService {
     }
 
     // 新会话 / 续传（__new__ 是前端的无效占位标记，等同无 sessionId）
-    const normalizedSessionId = (sdkSessionId === '__new__') ? undefined : sdkSessionId;
+    const normalizedSessionId = sdkSessionId === '__new__' ? undefined : sdkSessionId;
     let capturedSdkSessionId = normalizedSessionId;
     const isFirstMessage = !normalizedSessionId;
 
@@ -109,12 +136,7 @@ export class ChatService {
     let tokenUsage: { inputTokens?: number; outputTokens?: number } | undefined;
 
     // 内容追踪器，在 mapper 和 main loop 之间传递块级状态
-    const tracker: ContentTracker = {
-      blockStack: [],
-      thinkingText: '',
-      completedThinking: null,
-      completedText: null,
-    };
+    const tracker = new ContentTracker();
 
     try {
       const result = isFirstMessage
@@ -129,8 +151,8 @@ export class ChatService {
 
       for await (const msg of stream) {
         // 首条消息：捕获 system/init 事件
-        if (isFirstMessage && msg.type === 'system' && (msg as any).subtype === 'init') {
-          capturedSdkSessionId = (msg as any).session_id;
+        if (isFirstMessage && msg.type === 'system' && (msg as SDKSystemMessage).subtype === 'init') {
+          capturedSdkSessionId = (msg as SDKSystemMessage & { session_id?: string }).session_id;
 
           if (capturedSdkSessionId) {
             // 懒创建 Session 记录
@@ -150,15 +172,16 @@ export class ChatService {
             this.firstUserMessage.set(capturedSdkSessionId, content.trim());
 
             this.logger.log(`Session created: ${capturedSdkSessionId}`);
-            this.sessionLogService.log('default', capturedSdkSessionId, 'Session created',
-              { content: content.slice(0, 100) });
+            this.sessionLogService.log('default', capturedSdkSessionId, 'Session created', {
+              content: content.slice(0, 100),
+            });
           }
           continue;
         }
 
         // 捕获 result 消息中的 token 用量
-        if (msg.type === 'result' && (msg as any).subtype === 'success') {
-          const resultMsg = msg as any;
+        if (msg.type === 'result' && (msg as SDKResultSuccess).subtype === 'success') {
+          const resultMsg = msg as SDKResultSuccess;
           if (resultMsg.usage) {
             tokenUsage = {
               inputTokens: resultMsg.usage.input_tokens,
@@ -166,8 +189,10 @@ export class ChatService {
             };
           }
           if (capturedSdkSessionId) {
-            this.sessionLogService.log('default', capturedSdkSessionId, 'Query completed',
-              { turns: resultMsg.num_turns, usage: tokenUsage });
+            this.sessionLogService.log('default', capturedSdkSessionId, 'Query completed', {
+              turns: resultMsg.num_turns,
+              usage: tokenUsage,
+            });
           }
           continue;
         }
@@ -184,9 +209,10 @@ export class ChatService {
         // 处理 thinking 块完成 → 记录到 Langfuse
         if (tracker.completedThinking !== null && capturedSdkSessionId) {
           this.langfuseService.recordThinking(capturedSdkSessionId, tracker.completedThinking);
-          this.sessionLogService.log('default', capturedSdkSessionId, 'Thinking block recorded',
-            { thinkingLength: tracker.completedThinking.length });
-          tracker.completedThinking = null;
+          this.sessionLogService.log('default', capturedSdkSessionId, 'Thinking block recorded', {
+            thinkingLength: tracker.completedThinking.length,
+          });
+          tracker.clearCompletedThinking();
         }
       }
 
@@ -198,12 +224,7 @@ export class ChatService {
 
         // 记录 LLM Generation 到 Langfuse（含 token 用量）
         if (responseText.trim().length > 0) {
-          this.langfuseService.recordGeneration(
-            finalSessionId,
-            content,
-            responseText,
-            tokenUsage,
-          );
+          this.langfuseService.recordGeneration(finalSessionId, content, responseText, tokenUsage);
         }
 
         // 刷新 Langfuse 数据（不清理 Trace，保留给多轮对话）
@@ -217,8 +238,7 @@ export class ChatService {
       const errMsg = (error as Error).message;
       this.logger.error(`Chat stream error: ${errMsg}`);
       if (capturedSdkSessionId) {
-        this.sessionLogService.log('default', capturedSdkSessionId, 'Stream error',
-          { error: errMsg });
+        this.sessionLogService.log('default', capturedSdkSessionId, 'Stream error', { error: errMsg });
       }
       onEvent({ type: SseEventType.Error, data: { message: errMsg } });
     } finally {
@@ -294,10 +314,7 @@ export class ChatService {
   /**
    * 在 N 轮消息后自动生成会话标题
    */
-  private async tryUpdateTitle(
-    sdkSessionId: string,
-    onEvent: SseEventCallback,
-  ): Promise<void> {
+  private async tryUpdateTitle(sdkSessionId: string, onEvent: SseEventCallback): Promise<void> {
     const round = this.messageRoundCount.get(sdkSessionId) ?? 0;
     if (round < 1) return; // 至少完成一轮才更新
 
@@ -324,11 +341,7 @@ export class ChatService {
   /**
    * 检测 Agent 响应中是否包含 PRD 内容，自动提取为资产
    */
-  private async tryExtractPrd(
-    sdkSessionId: string,
-    responseText: string,
-    onEvent: SseEventCallback,
-  ): Promise<void> {
+  private async tryExtractPrd(sdkSessionId: string, responseText: string, onEvent: SseEventCallback): Promise<void> {
     const prdMarkers = [
       '# PRD',
       '# 产品需求',
@@ -338,7 +351,7 @@ export class ChatService {
       '## 功能需求',
       '## 非功能需求',
     ];
-    const hasPrdMarker = prdMarkers.some(m => responseText.includes(m));
+    const hasPrdMarker = prdMarkers.some((m) => responseText.includes(m));
     if (!hasPrdMarker) return;
 
     try {
@@ -396,7 +409,7 @@ export class ChatService {
             }
           } else if (block.type === 'thinking') {
             blockStack.push('thinking');
-            tracker.thinkingText = '';
+            tracker.resetThinkingText();
             events.push({
               type: SseEventType.ToolInProgress,
               data: { status: '思考中...' },
@@ -427,7 +440,7 @@ export class ChatService {
           } else if (delta.type === 'thinking_delta') {
             // 累积 thinking 内容到 tracker
             if (delta.thinking) {
-              tracker.thinkingText += delta.thinking;
+              tracker.appendThinkingText(delta.thinking);
             }
             // 也转发到前端，让用户可以看到思考过程
             if (delta.thinking && delta.thinking.trim().length > 0) {
@@ -449,8 +462,7 @@ export class ChatService {
             events.push({ type: SseEventType.ToolComplete, data: {} });
           } else if (prev === 'thinking') {
             // 将完整 thinking 内容传递给 main loop（通过 tracker）
-            tracker.completedThinking = tracker.thinkingText;
-            tracker.thinkingText = '';
+            tracker.markThinkingComplete();
             events.push({
               type: SseEventType.ToolInProgress,
               data: { status: '思考结束，正在生成回复...' },
@@ -471,12 +483,12 @@ export class ChatService {
       }
     } else if (msg.type === 'assistant') {
       const blocks = msg.message?.content;
-      const hasText = Array.isArray(blocks) && blocks.some(b => b.type === 'text' && b.text);
+      const hasText = Array.isArray(blocks) && blocks.some((b) => b.type === 'text' && b.text);
       if (hasText) {
         events.push({ type: SseEventType.MessageDone, data: {} });
       }
     } else if (msg.type === 'prompt_suggestion') {
-      const suggestion = (msg as any).suggestion as string | undefined;
+      const suggestion = (msg as SDKPromptSuggestionMessage).suggestion;
       if (suggestion) {
         events.push({
           type: SseEventType.ToolOptions,

@@ -21,5 +21,6 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "types": ["vitest/globals", "node"]
-  }
+  },
+  "exclude": ["vitest.config.ts", "dist", "node_modules"]
 }

@@ -3,12 +3,13 @@ import eslint from '@eslint/js';
 import stylistic from '@stylistic/eslint-plugin';
 import angular from 'angular-eslint';
 import { defineConfig } from 'eslint/config';
+import prettier from 'eslint-config-prettier';
 import tseslint from 'typescript-eslint';
 
 export default defineConfig([
   {
     files: ['**/*.ts'],
-    ignores: ['build/', 'node_modules/', 'coverage/'],
+    ignores: ['build/', 'node_modules/', 'coverage/', 'vitest.config.ts'],
     languageOptions: {
       parserOptions: {
         projectService: true,
@@ -136,4 +137,6 @@ export default defineConfig([
       '@stylistic/max-len': 'off',
     },
   },
+  // Disable ESLint rules that conflict with Prettier (must be last)
+  prettier,
 ]);

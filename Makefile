@@ -9,10 +9,10 @@
 #   pnpm    → dev、build、test 等开发命令（复用 pnpm workspace）
 
 .PHONY: install setup \
-        db-up db-up-min db-down db-status db-setup db-studio db-reset db-logs \
+        db-up db-up-min db-down db-status db-setup db-studio db-generate db-seed db-migrate db-reset db-logs \
         dev server server-dev server-build server-lint server-test \
         client client-dev client-build client-lint client-test \
-        test lint format typecheck type-check logs clean help
+        test lint format typecheck type-check logs langfuse clean help
 
 # ─── 首次安装 ─────────────────────────────────────────────────────
 
@@ -56,22 +56,31 @@ db-logs:           ## 查看 Docker 服务日志
 
 db-setup:          ## 运行迁移 + 生成 Client + 种子数据
 	cd server && npx prisma migrate dev --name init 2>/dev/null; \
-		npx prisma generate && \
-		npx prisma db seed
+		pnpm db:generate && \
+		pnpm db:seed
 	@echo "✅ 数据库初始化完成"
 
 db-migrate:        ## 创建新迁移（用法: make db-migrate name=xxx）
 	cd server && npx prisma migrate dev --name $(name)
 
-db-studio:         ## 打开 Prisma Studio
-	cd server && npx prisma studio
+db-generate:       ## 生成 Prisma Client
+	pnpm db:generate
+
+db-seed:           ## 填充种子数据
+	pnpm db:seed
+
+db-studio:         ## 打开 Prisma Studio 数据浏览器
+	pnpm db:studio
 
 db-reset:          ## 重置数据库（清空数据，重新迁移+种子）
-	cd server && npx prisma migrate reset --force
+	pnpm db:reset
 
 # ─── 开发服务 ─────────────────────────────────────────────────────
 
-dev:               ## 启动后端 + 前端（Ctrl+C 停止全部）
+dev:               ## 启动后端 + 前端（先杀掉旧进程，Ctrl+C 停止全部）
+	@echo "🔪 清理旧进程..."
+	@lsof -ti :3100 | xargs kill -9 2>/dev/null || true
+	@lsof -ti :4300 | xargs kill -9 2>/dev/null || true
 	@echo "🚀 启动 Oceanus 开发模式..."
 	@echo "   后端 → http://localhost:3100"
 	@echo "   前端 → http://localhost:4300"
@@ -136,6 +145,9 @@ clean:             ## 清理 node_modules 和构建产物
 		client/node_modules client/dist
 	@echo "✅ 已清理 node_modules、dist、logs"
 
+langfuse:          ## 打开 Langfuse 可观测平台
+	pnpm langfuse
+
 # ─── 帮助 ─────────────────────────────────────────────────────────
 
 help:              ## 显示本帮助
@@ -154,9 +166,16 @@ help:              ## 显示本帮助
 	@echo "  make test         运行后端测试"
 	@echo ""
 	@echo "数据库:"
+	@echo "  make db-studio             打开 Prisma Studio 数据浏览器"
+	@echo "  make db-generate           生成 Prisma Client"
 	@echo "  make db-migrate name=xxx   创建新迁移"
 	@echo "  make db-setup              迁移 + 种子"
-	@echo "  make db-studio             打开 Prisma Studio"
+	@echo "  make db-seed               填充种子数据"
+	@echo "  make db-reset              重置数据库"
+	@echo ""
+	@echo "平台:"
+	@echo "  make langfuse              打开 Langfuse 可观测平台"
+	@echo "                               → http://localhost:3001"
 	@echo ""
 	@echo "代码质量:"
 	@echo "  make lint         代码检查"

@@ -21,9 +21,18 @@ import { SessionService } from './session.service';
             !rounded-xl hover:!border-indigo-300 hover:!text-indigo-600
             hover:!shadow-md !transition-all !duration-200 !text-gray-700 !shadow-none"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M5 12h14"/><path d="M12 5v14"/>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M5 12h14" />
+            <path d="M12 5v14" />
           </svg>
           新建会话
         </p-button>
@@ -45,11 +54,21 @@ import { SessionService } from './session.service';
         } @else if (isEmpty()) {
           <!-- Session empty state -->
           <div class="text-center py-8 px-4">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2" stroke-linecap="round"
-              stroke-linejoin="round" class="mx-auto text-indigo-200 mb-2">
-              <path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586
-                l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/>
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="mx-auto text-indigo-200 mb-2"
+            >
+              <path
+                d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586
+                l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"
+              />
             </svg>
             <p class="text-xs text-gray-400">暂无历史会话</p>
             <p class="text-xs text-gray-400 mt-0.5">点击上方按钮开始新会话</p>
@@ -68,14 +87,23 @@ import { SessionService } from './session.service';
                 (click)="selectSession(session.sdkSessionId)"
                 (keydown.enter)="selectSession(session.sdkSessionId)"
               >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                  stroke-linejoin="round" class="flex-shrink-0"
+                <svg
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  class="flex-shrink-0"
                   [class.text-indigo-500]="isActive(session.sdkSessionId)"
                   [class.text-gray-400]="!isActive(session.sdkSessionId)"
                 >
-                  <path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586
-                    l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/>
+                  <path
+                    d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586
+                    l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"
+                  />
                 </svg>
                 <span class="text-sm truncate flex-1">{{ session.title }}</span>
 
@@ -84,26 +112,32 @@ import { SessionService } from './session.service';
                 }
 
                 <!-- 删除按钮（hover 时显示） -->
-                <button
-                  class="flex-shrink-0 w-6 h-6 flex items-center justify-center
-                    rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50
-                    opacity-0 group-hover:opacity-100 transition-all duration-150
-                    focus:opacity-100 focus:outline-none"
+                <p-button
+                  (onClick)="$event.stopPropagation(); deleteSession(session)"
+                  styleClass="!w-6 !h-6 !p-0 !rounded-md !text-gray-400 hover:!text-red-500
+                    hover:!bg-red-50 opacity-0 group-hover:opacity-100 !transition-all !duration-150
+                    focus:opacity-100 [&_.p-button-label]:hidden"
                   title="删除会话"
-                  (click)="$event.stopPropagation(); deleteSession(session)"
-                  (keydown.enter)="$event.stopPropagation(); deleteSession(session)"
-                  (keydown)="$event.stopPropagation()"
+                  severity="secondary"
+                  [text]="true"
                 >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                    stroke-linejoin="round">
-                    <polyline points="3 6 5 6 21 6"/>
-                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                    <path d="M10 11v6"/>
-                    <path d="M14 11v6"/>
-                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <polyline points="3 6 5 6 21 6" />
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                    <path d="M10 11v6" />
+                    <path d="M14 11v6" />
+                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
                   </svg>
-                </button>
+                </p-button>
               </div>
             }
           </div>
@@ -176,7 +210,7 @@ export class SessionListComponent {
 
   updateSessionTitle(sdkSessionId: string, title: string): void {
     this.sessions.update((list) => {
-      return list.map(s => (s.sdkSessionId === sdkSessionId ? { ...s, title } : s));
+      return list.map((s) => (s.sdkSessionId === sdkSessionId ? { ...s, title } : s));
     });
   }
 
@@ -194,7 +228,7 @@ export class SessionListComponent {
         this.sessionService.deleteBySdkSessionId(session.sdkSessionId).subscribe({
           next: () => {
             // 从本地列表移除
-            this.sessions.update(list => list.filter(s => s.id !== session.id));
+            this.sessions.update((list) => list.filter((s) => s.id !== session.id));
             // 如果删除的是当前活跃会话，通知父组件
             if (this.activeSessionId === session.sdkSessionId) {
               this.sessionRemoved.emit(session.sdkSessionId);

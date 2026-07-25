@@ -1,4 +1,22 @@
+import { config } from 'dotenv';
+import { resolve } from 'path';
+
+// 在 NestJS ConfigModule 之前手动加载 .env，确保 Sentry.init 能读到环境变量
+config({ path: resolve(__dirname, '../.env') });
+
 import 'reflect-metadata';
+import * as Sentry from '@sentry/node';
+
+// 初始化 Sentry（兼容 GlitchTip）
+if (process.env.GLITCHTIP_DSN) {
+  Sentry.init({
+    dsn: process.env.GLITCHTIP_DSN,
+    tracesSampleRate: parseFloat(process.env.SENTRY_TRACES_SAMPLE_RATE || '1.0'),
+    environment: process.env.NODE_ENV || 'development',
+  });
+  console.log('Sentry initialized');
+}
+
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';

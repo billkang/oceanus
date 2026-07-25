@@ -1,12 +1,8 @@
-import { ChangeDetectionStrategy, Component, input, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core';
 import { DomSanitizer, type SafeHtml } from '@angular/platform-browser';
 
 function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function inlineMarkdown(text: string): string {
@@ -38,8 +34,9 @@ function renderMarkdown(md: string): string {
     if (line.trim().startsWith('```')) {
       if (inCodeBlock) {
         htmlLines.push(
-          `<pre class="bg-gray-100 rounded-lg p-4 overflow-x-auto text-sm leading-relaxed">` +
-            `${escapeHtml(codeContent.join('\n'))}</pre>`,
+          `<pre class="bg-gray-100 rounded-lg p-4 overflow-x-auto text-sm leading-relaxed">
+            ${escapeHtml(codeContent.join('\n'))}
+          </pre>`,
         );
         codeContent = [];
         inCodeBlock = false;
@@ -55,7 +52,10 @@ function renderMarkdown(md: string): string {
 
     // Table (simple pipe table)
     if (line.trim().startsWith('|')) {
-      const cells = line.split('|').filter(c => c.trim()).map(c => c.trim());
+      const cells = line
+        .split('|')
+        .filter((c) => c.trim())
+        .map((c) => c.trim());
       if (line.includes('---') && inTable) {
         continue;
       }
@@ -65,8 +65,7 @@ function renderMarkdown(md: string): string {
           `<tr>${cells
             .map(
               (c) =>
-                `<th class="text-left px-3 py-2 text-sm font-semibold text-gray-700 border-b border-gray-200">` +
-                  `${inlineMarkdown(c)}</th>`,
+                `<th class="text-left px-3 py-2 text-sm font-semibold text-gray-700 border-b border-gray-200">${inlineMarkdown(c)}</th>`,
             )
             .join('')}</tr>`,
         ];
@@ -74,8 +73,7 @@ function renderMarkdown(md: string): string {
         tableRows.push(
           `<tr>${cells
             .map(
-              (c) =>
-                `<td class="px-3 py-2 text-sm text-gray-600 border-b border-gray-100">${inlineMarkdown(c)}</td>`,
+              (c) => `<td class="px-3 py-2 text-sm text-gray-600 border-b border-gray-100">${inlineMarkdown(c)}</td>`,
             )
             .join('')}</tr>`,
         );
@@ -122,8 +120,7 @@ function renderMarkdown(md: string): string {
     if (ulMatch) {
       const indent = Math.floor(ulMatch[1].length / 2);
       htmlLines.push(
-        `<li class="text-sm text-gray-600 leading-relaxed ml-${Math.min(indent * 4 + 4, 8)} list-disc">` +
-          `${inlineMarkdown(ulMatch[2])}</li>`,
+        `<li class="text-sm text-gray-600 leading-relaxed ml-${Math.min(indent * 4 + 4, 8)} list-disc">${inlineMarkdown(ulMatch[2])}</li>`,
       );
       continue;
     }
@@ -147,9 +144,7 @@ function renderMarkdown(md: string): string {
 @Component({
   selector: 'app-markdown-renderer',
   standalone: true,
-  template: `
-    <div class="prose prose-sm prose-gray max-w-none" [innerHTML]="renderedContent()"></div>
-  `,
+  template: ` <div class="prose prose-sm prose-gray max-w-none" [innerHTML]="renderedContent()"></div> `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MarkdownRendererComponent {
