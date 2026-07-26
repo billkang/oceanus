@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
@@ -8,6 +9,8 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { LangfuseModule } from './common/langfuse/langfuse.module';
 import { LoggingModule } from './common/logging/logging.module';
 import { AgentModule } from './agent/agent.module';
+import { KeyPoolModule } from './common/key-pool/key-pool.module';
+import { RequestQueueModule } from './common/queue/request-queue.module';
 import { AuthModule } from './auth/auth.module';
 import { ProjectModule } from './project/project.module';
 import { SessionModule } from './session/session.module';
@@ -22,6 +25,28 @@ import { HealthModule } from './health/health.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+    }),
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        throttlers: [
+          {
+            name: 'global',
+            ttl: 60000,
+            limit: config.get('GLOBAL_RATE_LIMIT_LIMIT', 60),
+          },
+          {
+            name: 'user',
+            ttl: 60000,
+            limit: config.get('USER_RATE_LIMIT_LIMIT', 5),
+            getTracker: (req: Record<string, unknown>) => {
+              const user = req.user as { id?: string | number } | undefined;
+              return user?.id?.toString() ?? (req.ip as string);
+            },
+          },
+        ],
+        errorMessage: '请求过于频繁，请稍后重试',
+      }),
     }),
     LoggerModule.forRoot({
       pinoHttp: {
@@ -70,6 +95,7 @@ import { HealthModule } from './health/health.module';
     }),
     PrismaModule,
     LangfuseModule,
+    KeyPoolModule,
     LoggingModule,
     AgentModule,
     AuthModule,
@@ -78,6 +104,7 @@ import { HealthModule } from './health/health.module';
     ChatModule,
     AssetModule,
     HealthModule,
+    RequestQueueModule,
   ],
   controllers: [AppController],
   providers: [AppService, AllExceptionsFilter],

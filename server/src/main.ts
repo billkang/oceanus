@@ -23,6 +23,10 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import cluster from 'node:cluster';
+import * as os from 'node:os';
+
+const CLUSTER_ENABLED = process.env.CLUSTER_ENABLED === 'true';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
@@ -62,5 +66,38 @@ async function bootstrap() {
   await app.listen(port);
   logger.log(`Application running on http://localhost:${port}`);
   logger.log(`Swagger docs at http://localhost:${port}/api/docs`);
+
+  // Worker 优雅退出
+  if (CLUSTER_ENABLED && cluster.isWorker) {
+    const shutdownTimeout = Number(process.env.WORKER_SHUTDOWN_TIMEOUT || 30);
+    process.on('SIGTERM', async () => {
+      logger.log(`Worker ${process.pid} shutting down gracefully (${shutdownTimeout}s timeout)`);
+      const timeout = setTimeout(() => {
+        logger.warn(`Worker ${process.pid} shutdown timeout, forcing exit`);
+        process.exit(1);
+      }, shutdownTimeout * 1000);
+      await app.close();
+      clearTimeout(timeout);
+      process.exit(0);
+    });
+  }
 }
-bootstrap();
+
+// Cluster 模式入口
+if (CLUSTER_ENABLED && cluster.isPrimary) {
+  const cpuCount = os.cpus().length;
+  console.log(`Master process started, forking ${cpuCount} workers...`);
+
+  for (let i = 0; i < cpuCount; i++) {
+    cluster.fork();
+  }
+
+  cluster.on('exit', (worker, code, signal) => {
+    console.warn(`Worker ${worker.process.pid} died (code: ${code}, signal: ${signal}), restarting...`);
+    cluster.fork();
+  });
+
+  // Master 不做 NestJS 启动
+} else {
+  bootstrap();
+}

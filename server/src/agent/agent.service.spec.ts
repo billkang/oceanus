@@ -31,6 +31,14 @@ const createMockLangfuse = () =>
     finalizeTrace: vi.fn().mockResolvedValue(undefined),
   }) as unknown as LangfuseService;
 
+// KeyPool mock
+const mockKeyPool = {
+  select: vi.fn().mockResolvedValue('pool-key-1'),
+  markFailure: vi.fn().mockResolvedValue(undefined),
+  getPoolStats: vi.fn(),
+  getKeyCount: vi.fn().mockReturnValue(1),
+};
+
 describe('AgentService', () => {
   const mockLogger = { log: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as unknown as Logger;
 
@@ -43,12 +51,18 @@ describe('AgentService', () => {
 
   describe('isAvailable', () => {
     it('ANTHROPIC_API_KEY 配置时应返回 true', () => {
-      const service = new AgentService(mockLogger, mockConfig('test-key'), nullLangfuse);
+      const service = new AgentService(mockLogger, mockConfig('test-key'), nullLangfuse, mockKeyPool as any);
       expect(service.isAvailable()).toBe(true);
     });
 
-    it('ANTHROPIC_API_KEY 未配置时应返回 false', () => {
-      const service = new AgentService(mockLogger, mockConfig(undefined), nullLangfuse);
+    it('ANTHROPIC_API_KEY 未配置但 KeyPool 有 Key 时应返回 true', () => {
+      const service = new AgentService(mockLogger, mockConfig(undefined), nullLangfuse, mockKeyPool as any);
+      expect(service.isAvailable()).toBe(true);
+    });
+
+    it('ANTHROPIC_API_KEY 和 KeyPool 均空时应返回 false', () => {
+      mockKeyPool.getKeyCount.mockReturnValue(0);
+      const service = new AgentService(mockLogger, mockConfig(undefined), nullLangfuse, mockKeyPool as any);
       expect(service.isAvailable()).toBe(false);
     });
   });
@@ -67,7 +81,7 @@ describe('AgentService', () => {
       })();
       vi.mocked(sdk.query).mockReturnValue(mockGenerate as any);
 
-      const service = new AgentService(mockLogger, mockConfig('test-key'), nullLangfuse);
+      const service = new AgentService(mockLogger, mockConfig('test-key'), nullLangfuse, mockKeyPool as any);
       const { stream } = await service.sendMessage('帮我分析需求');
       const events: any[] = [];
       for await (const msg of stream) {
@@ -75,9 +89,7 @@ describe('AgentService', () => {
       }
 
       expect(events).toHaveLength(2);
-      expect(sdk.query).toHaveBeenCalledWith(
-        expect.objectContaining({ prompt: '帮我分析需求' }),
-      );
+      expect(sdk.query).toHaveBeenCalledWith(expect.objectContaining({ prompt: '帮我分析需求' }));
     });
 
     it('首条消息不传 sessionId，让 SDK 自动生成新会话', async () => {
@@ -89,7 +101,7 @@ describe('AgentService', () => {
       })();
       vi.mocked(sdk.query).mockReturnValue(mockGenerate as any);
 
-      const service = new AgentService(mockLogger, mockConfig('test-key'), nullLangfuse);
+      const service = new AgentService(mockLogger, mockConfig('test-key'), nullLangfuse, mockKeyPool as any);
       await service.sendMessage('hello');
 
       const queryOptions = vi.mocked(sdk.query).mock.calls[0][0].options;
@@ -108,7 +120,7 @@ describe('AgentService', () => {
       })();
       vi.mocked(sdk.query).mockReturnValue(mockGenerate as any);
 
-      const service = new AgentService(mockLogger, mockConfig('test-key'), nullLangfuse);
+      const service = new AgentService(mockLogger, mockConfig('test-key'), nullLangfuse, mockKeyPool as any);
       await service.sendMessage('继续', { resume: 'sdk-uuid-abc' });
 
       const queryOptions = vi.mocked(sdk.query).mock.calls[0][0].options;
@@ -116,12 +128,36 @@ describe('AgentService', () => {
       expect(queryOptions?.continue).toBeUndefined();
     });
 
-    it('未配置 API Key 时应抛出错误', async () => {
-      const service = new AgentService(mockLogger, mockConfig(undefined), nullLangfuse);
+    it('应使用 KeyPool 选择 API Key 并在完成后恢复环境变量', async () => {
+      const originalKey = 'test-original-key';
+      process.env.ANTHROPIC_API_KEY = originalKey;
 
-      await expect(
-        service.sendMessage('hello'),
-      ).rejects.toThrow('AI 服务未配置');
+      const mockGenerate = (async function* () {
+        yield {
+          type: 'stream_event' as const,
+          event: { type: 'content_block_start', content_block: { type: 'text', text: 'OK' } },
+        };
+      })();
+      vi.mocked(sdk.query).mockReturnValue(mockGenerate as any);
+
+      mockKeyPool.select.mockResolvedValue('pool-selected-key');
+      const service = new AgentService(mockLogger, mockConfig('test-key'), nullLangfuse, mockKeyPool as any);
+      await service.sendMessage('hello');
+
+      // KeyPool.select 被调用
+      expect(mockKeyPool.select).toHaveBeenCalled();
+      // SDK query 被调用（env var 在调用期间已设置）
+      expect(sdk.query).toHaveBeenCalled();
+      // 完成后恢复原始环境变量
+      expect(process.env.ANTHROPIC_API_KEY).toBe(originalKey);
+
+      process.env.ANTHROPIC_API_KEY = undefined;
+    });
+
+    it('未配置 API Key 时应抛出错误', async () => {
+      const service = new AgentService(mockLogger, mockConfig(undefined), nullLangfuse, mockKeyPool as any);
+
+      await expect(service.sendMessage('hello')).rejects.toThrow('AI 服务未配置');
     });
 
     it('LangfuseService 注入时 hooks 应包含 SessionStart/PostToolUse/SessionEnd', async () => {
@@ -134,7 +170,7 @@ describe('AgentService', () => {
       vi.mocked(sdk.query).mockReturnValue(mockGenerate as any);
 
       const langfuse = createMockLangfuse();
-      const service = new AgentService(mockLogger, mockConfig('test-key'), langfuse);
+      const service = new AgentService(mockLogger, mockConfig('test-key'), langfuse, mockKeyPool as any);
       await service.sendMessage('hello');
 
       const optionsArg = vi.mocked(sdk.query).mock.calls[0][0].options;
@@ -152,7 +188,7 @@ describe('AgentService', () => {
         { role: 'user', content: [{ type: 'text', text: 'hello' }] } as any,
       ]);
 
-      const service = new AgentService(mockLogger, mockConfig('test-key'), nullLangfuse);
+      const service = new AgentService(mockLogger, mockConfig('test-key'), nullLangfuse, mockKeyPool as any);
       const result = await service.getSessionMessages('session-uuid');
 
       expect(result).toHaveLength(1);
@@ -164,7 +200,7 @@ describe('AgentService', () => {
     it('应删除 SDK 会话', async () => {
       vi.mocked(sdk.deleteSession).mockResolvedValue(undefined);
 
-      const service = new AgentService(mockLogger, mockConfig('test-key'), nullLangfuse);
+      const service = new AgentService(mockLogger, mockConfig('test-key'), nullLangfuse, mockKeyPool as any);
       await service.destroyAgent('session-uuid');
 
       expect(sdk.deleteSession).toHaveBeenCalledWith('session-uuid', expect.any(Object));

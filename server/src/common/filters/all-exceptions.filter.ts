@@ -2,6 +2,7 @@ import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus, Injec
 import * as Sentry from '@sentry/node';
 import { Logger } from 'nestjs-pino';
 import type { Response } from 'express';
+import { ThrottlerException } from '@nestjs/throttler';
 
 /**
  * 全局异常过滤器
@@ -19,7 +20,15 @@ export class AllExceptionsFilter implements ExceptionFilter {
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = '服务器内部错误';
 
-    if (exception instanceof HttpException) {
+    if (exception instanceof ThrottlerException) {
+      response.status(HttpStatus.TOO_MANY_REQUESTS).json({
+        success: false,
+        statusCode: HttpStatus.TOO_MANY_REQUESTS,
+        message: '请求过于频繁，请稍后重试',
+        retryAfter: Math.ceil(60000 / 1000),
+      });
+      return;
+    } else if (exception instanceof HttpException) {
       status = exception.getStatus();
       const res = exception.getResponse();
       if (typeof res === 'string') {

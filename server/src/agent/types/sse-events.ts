@@ -14,6 +14,9 @@ export enum SseEventType {
   TitleUpdated = 'title_updated',
   Error = 'error',
   AiNotConfigured = 'ai_not_configured',
+  Queued = 'queued',
+  QueuePosition = 'queue_position',
+  Dequeued = 'dequeued',
 }
 
 /** SSE 事件 — 会话已创建（首条消息时推送 sdkSessionId） */
@@ -100,6 +103,24 @@ export interface SseAiNotConfigured {
   data: { message: string };
 }
 
+/** SSE 事件 — 请求已排队 */
+export interface SseQueued {
+  type: SseEventType.Queued;
+  data: { position: number; estimatedWait: string };
+}
+
+/** SSE 事件 — 排队位置更新 */
+export interface SseQueuePosition {
+  type: SseEventType.QueuePosition;
+  data: { position: number; totalBefore: number };
+}
+
+/** SSE 事件 — 请求已出队，开始执行 */
+export interface SseDequeued {
+  type: SseEventType.Dequeued;
+  data: Record<string, never>;
+}
+
 /** 所有 SSE 事件类型的联合 */
 export type SseEvent =
   | SseSessionCreated
@@ -115,4 +136,7 @@ export type SseEvent =
   | SseAssetReady
   | SseTitleUpdated
   | SseError
-  | SseAiNotConfigured;
+  | SseAiNotConfigured
+  | SseQueued
+  | SseQueuePosition
+  | SseDequeued;

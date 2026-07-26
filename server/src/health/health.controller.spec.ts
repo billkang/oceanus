@@ -51,7 +51,9 @@ describe('HealthController', () => {
       expect(result).toEqual(mockHealthCheckResult);
       expect(result.status).toBe('ok');
       expect(result.info?.database?.status).toBe('up');
-      expect(mockHealthCheckService.check).toHaveBeenCalledWith([expect.any(Function)]);
+      expect(mockHealthCheckService.check).toHaveBeenCalledWith(
+        expect.arrayContaining([expect.any(Function), expect.any(Function)]),
+      );
     });
 
     it('数据库不可用时应返回 error 状态', async () => {

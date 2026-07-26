@@ -1,6 +1,8 @@
 import { Controller, Get } from '@nestjs/common';
 import { HealthCheck, HealthCheckService, PrismaHealthIndicator } from '@nestjs/terminus';
+import type { HealthIndicatorResult } from '@nestjs/terminus';
 import { PrismaService } from '../prisma/prisma.service';
+import cluster from 'node:cluster';
 
 @Controller('health')
 export class HealthController {
@@ -13,6 +15,17 @@ export class HealthController {
   @Get()
   @HealthCheck()
   check() {
-    return this.health.check([() => this.prismaHealth.pingCheck('database', this.prisma)]);
+    return this.health.check([
+      () => this.prismaHealth.pingCheck('database', this.prisma),
+      async (): Promise<HealthIndicatorResult> => ({
+        cluster: {
+          status: 'up',
+          enabled: process.env.CLUSTER_ENABLED === 'true',
+          isWorker: cluster.isWorker,
+          workerId: cluster.isWorker ? (cluster.worker?.id ?? null) : null,
+          activeWorkers: cluster.isPrimary ? (cluster.workers ? Object.keys(cluster.workers).length : 0) : 0,
+        },
+      }),
+    ]);
   }
 }

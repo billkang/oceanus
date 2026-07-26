@@ -1,7 +1,7 @@
 # Oceanus — AI 中台系统总览
 
 > 本文档综合整理自 `.deepstorm/context.md`、`README.md`、架构图示及演示文稿内容。
-> 创建：2026-07-24 | 最后更新：2026-07-26
+> 创建：2026-07-24 | 最后更新：2026-07-26 (v2 — 新增并发架构 2.9)
 
 ---
 
@@ -478,7 +478,230 @@ PostgreSQL Evaluation 表
 - 与 Agent 模型 **分开**，避免同模型偏见
 - 推荐 GPT-4o 或 Claude Sonnet 系列（具体模型待定）
 
-### 2.8 部署架构
+### 2.9 并发架构（2026-07-26 新增）
+
+Oceanus 设计了五层并发控制体系，涵盖 API Key 管理、请求排队、速率限制、多进程扩展和数据库连接池，以支撑多用户同时使用的生产级场景。
+
+#### 架构总览
+
+```
+                  ┌─────────────────────────────────────────────────────┐
+                  │                  HTTP Request                       │
+                  │            POST /api/v1/chat (SSE)                  │
+                  └──────────────────┬──────────────────────────────────┘
+                                     │
+                                     ▼
+                  ┌─────────────────────────────────────────────────────┐
+                  │           ① Rate Limiter (ThrottlerGuard)           │
+                  │  ┌──────────────────────────────┐                   │
+                  │  │ global: 60 RPM (per IP)      │                   │
+                  │  │ user:   5  RPM (per JWT userId, fallback IP)    │
+                  │  └──────────────────────────────┘                   │
+                  │  超限 → 429 + retryAfter header                    │
+                  └──────────────────┬──────────────────────────────────┘
+                                     │
+                                     ▼
+                  ┌─────────────────────────────────────────────────────┐
+                  │          ② RequestQueue (FIFO + Semaphore)          │
+                  │                                                     │
+                  │  activeCount < MAX_CONCURRENT_LLM(3)?               │
+                  │    ├── Yes → immediate execution                    │
+                  │    └── No  → enqueue + SSE Queued event             │
+                  │                                                     │
+                  │  queue.length < REQUEST_QUEUE_MAX_SIZE(50)?         │
+                  │    ├── Yes → queued (position + estimated wait)     │
+                  │    └── No  → rejected (SSE Error: 系统繁忙)         │
+                  │                                                     │
+                  │  Dequeue: on stream complete → shift() → execute    │
+                  └──────────────────┬──────────────────────────────────┘
+                                     │
+                                     ▼
+                  ┌─────────────────────────────────────────────────────┐
+                  │         ③ KeyPool (Least-Used Selection)             │
+                  │                                                     │
+                  │  keys.sort((a,b) => a.usageCount - b.usageCount)    │
+                  │  selected.usageCount++                              │
+                  │  process.env.ANTHROPIC_API_KEY = selected.key       │
+                  │  on error → markFailure(key)                        │
+                  │                                                     │
+                  │  Sources: LLM_API_KEY_1..N → ANTHROPIC_API_KEY      │
+                  └──────────────────┬──────────────────────────────────┘
+                                     │
+                                     ▼
+                  ┌─────────────────────────────────────────────────────┐
+                  │          ④ AgentService → SDK query()               │
+                  │    env: ANTHROPIC_API_KEY (pool-selected)           │
+                  │    restore original key in finally block            │
+                  └─────────────────────────────────────────────────────┘
+                                     │
+                           ┌─────────┴──────────┐
+                           ▼                    ▼
+                  ┌───────────────┐    ┌─────────────────┐
+                  │  ⑤ Cluster   │    │ Prisma 连接池    │
+                  │ (可选: 多核) │    │ (每个 Worker)    │
+                  │  每个 Worker  │    │ DATABASE_URL?    │
+                  │  独立进程隔离 │    │ connection_limit │
+                  └───────────────┘    └─────────────────┘
+```
+
+#### 各层设计细节
+
+##### ① 速率限制 (± Rate Limiter)
+
+| 层         | 作用域                | 窗口 | 限制  | 超限响应           |
+| ---------- | --------------------- | ---- | ----- | ------------------ |
+| **global** | 客户端 IP             | 60s  | 60 次 | 429 + 建议重试时间 |
+| **user**   | JWT userId（回退 IP） | 60s  | 5 次  | 429 + 建议重试时间 |
+
+- 使用 `@nestjs/throttler` v6，通过 `ThrottlerGuard` 保护 `/chat` 端点
+- `getTracker` 自定义：优先使用 JWT `req.user.id`，无登录时回退到 IP
+- `@SkipThrottle()` 在 class 级别关闭，`@SkipThrottle({global: false, user: false})` 在 `POST /chat` 上选择性开启
+- **Cluster 模式下每个 Worker 独立计数**（默认 in-memory，无 Redis 共享存储）
+- 429 响应在 `AllExceptionsFilter` 中统一处理，包含 `retryAfter` 字段
+
+##### ② 请求队列 (± RequestQueue)
+
+**数据结构：** 内存 `QueuedRequest[]` 数组 + `activeCount` 信号量
+
+```
+enqueue(request):
+  if activeCount < maxConcurrent:
+    activeCount++
+    return { status: 'executed', executionPromise }
+
+  if queue.length >= maxQueueSize:
+    return { status: 'rejected', reason: 'queue_full', executionPromise }
+
+  queue.push(request)
+  return { status: 'queued', position, estimatedWait, executionPromise }
+
+executeAndDequeue(request):
+  await request.execute()
+  activeCount--
+  dequeueNext()
+
+dequeueNext():
+  if queue.length > 0 && activeCount < maxConcurrent:
+    next = queue.shift()
+    activeCount++
+    next.onEvent(Dequeued)  // SSE 通知前端
+    executeAndDequeue(next)
+```
+
+**关键设计：**
+
+- 配置项：`MAX_CONCURRENT_LLM`（默认 3）、`REQUEST_QUEUE_MAX_SIZE`（默认 50）
+- 每个请求返回 `executionPromise`，外部 `await` 此 Promise 即可阻塞到执行完成
+- `cancel(sessionId)` → 先从队列移除，不在队列再中断活跃流
+- SSE 事件：`Queued`（排队开始）、`QueuePosition`（位置更新）、`Dequeued`（出队）
+- **Cluster 模式下每个 Worker 独立队列**（第一版设计，后续可迁移至 Redis）
+
+##### ③ API Key 池 (± KeyPool)
+
+**选择策略：** Least-Used（使用次数最少的 Key 优先）
+
+```typescript
+select(): string {
+  const sorted = [...keys].sort((a, b) => a.usageCount - b.usageCount);
+  selected.usageCount++;
+  return selected.key;
+}
+```
+
+| 配置来源            | 优先级                               |
+| ------------------- | ------------------------------------ |
+| `LLM_API_KEY_1`..N  | 高（顺序扫描，遇空停止）             |
+| `ANTHROPIC_API_KEY` | 低（无 LLM_API_KEY_N 时的 fallback） |
+
+**失败处理：** `markFailure(key)` 递增 `failureCount` + 记录 `lastFailureAt`
+
+- `healthyKeys` 定义为 `failureCount < 3` 的 Key
+- 没有自动故障摘除（简单的失败计数机制，后续可扩展为熔断器）
+
+**环境变量注入：** 调用 SDK `query()` 前设置 `process.env.ANTHROPIC_API_KEY`，finally 块恢复原始值。由于 `MAX_CONCURRENT_LLM` 限流，同一进程内最多 3 个并发请求，env var 切换的竞态风险在可控范围内。
+
+##### ④ Cluster 模式（可选）
+
+| 配置                      | 说明                       |
+| ------------------------- | -------------------------- |
+| `CLUSTER_ENABLED=true`    | 启用 Cluster 模式          |
+| Workers = CPU 核心数      | `os.cpus().length`         |
+| `WORKER_SHUTDOWN_TIMEOUT` | 优雅关闭超时（默认 30 秒） |
+
+**行为：**
+
+- Master 进程只负责 fork 和 crash 重启，不做 HTTP 服务
+- Worker 进程运行完整 `bootstrap()`（NestJS 应用）
+- Worker 收到 `SIGTERM` 后优雅关闭：`await app.close()` → `process.exit(0)`
+- 超时强制退出，防止 Worker"幽灵存活"
+- 健康检查 `/health` 返回 cluster 状态（`enabled`、`isWorker`、`workerId`、`activeWorkers`）
+
+**第一版限制：**
+
+- 无 sticky session（Node.js cluster 默认 round-robin 调度）
+- 每个 Worker 独立 Rate Limiter + RequestQueue
+- 如需共享状态，可通过现有 Redis 容器扩展
+
+##### ⑤ Prisma 连接池
+
+```
+每个 Worker = PRISMA_CONNECTION_LIMIT 个连接
+单进程   = 默认 ~10 个连接
+多 Worker = PRISMA_CONNECTION_LIMIT × CPU 核心数
+```
+
+- Prisma v6 已移除 `connectionLimit` 构造参数，通过 `DATABASE_URL?connection_limit=X` 配置
+- 启动日志中打印当前连接池大小
+- 建议 Cluster 模式下 `PRISMA_CONNECTION_LIMIT = 4`，单进程时保持默认
+
+#### SSE 事件序列（排队场景）
+
+```
+Queued              → { position: 3, estimatedWait: "约 30 秒" }
+QueuePosition       → { position: 2, totalBefore: 2 }      (前方完成一个)
+QueuePosition       → { position: 1, totalBefore: 1 }
+Dequeued            → {}                                    (开始执行)
+SessionCreated      → { sdkSessionId: "xxx" }               (首条消息)
+MessageStart        → { content: "" }
+MessageDelta        → { content: "正在..." }
+...                 → 流式输出
+StreamComplete      → {}                                    (全部完成)
+```
+
+#### 请求取消流程
+
+```
+POST /api/v1/chat (action: cancel, sessionId: xxx)
+  ├── requestQueue.cancel(sessionId)
+  │     ├── in queue? → remove → return (无需额外操作)
+  │     └── not in queue? → check activeQueries
+  │           ├── has active query? → interrupt() → return
+  │           └── no active query? → log warning → return
+  └── SSE: StreamComplete
+```
+
+#### 并发控制的环境变量清单
+
+| 环境变量                  | 默认值 | 说明                       |
+| ------------------------- | ------ | -------------------------- |
+| `LLM_API_KEY_1`..N        | —      | API Key 池（多 Key 轮换）  |
+| `MAX_CONCURRENT_LLM`      | 3      | 最大 LLM 并发请求数        |
+| `REQUEST_QUEUE_MAX_SIZE`  | 50     | 请求队列最大长度           |
+| `GLOBAL_RATE_LIMIT_LIMIT` | 60     | 全局每分钟最大聊天请求数   |
+| `USER_RATE_LIMIT_LIMIT`   | 5      | 单用户每分钟最大聊天请求数 |
+| `CLUSTER_ENABLED`         | false  | 是否启用 Cluster 多进程    |
+| `WORKER_SHUTDOWN_TIMEOUT` | 30     | Worker 优雅关闭超时（秒）  |
+| `PRISMA_CONNECTION_LIMIT` | (auto) | Prisma 连接池大小          |
+
+#### 已知限制
+
+| 限制                             | 说明                                                           | 后续改进方向                     |
+| -------------------------------- | -------------------------------------------------------------- | -------------------------------- |
+| Cluster 下 Rate Limiter 独立计数 | 每个 Worker 独立 in-memory 窗口                                | 迁移至 Redis 共享存储            |
+| Cluster 下队列独立               | 每个 Worker 持有自己的 FIFO 队列                               | 迁移至 Redis/RabbitMQ 分布式队列 |
+| 预计等待时间固定                 | 按 `position × 10s` 估算，非动态计算                           | 接入滚动平均执行时长             |
+| 无熔断器                         | KeyPool 仅做失败计数，不自动摘除故障 Key                       | 熔断器模式（circuit breaker）    |
+| Keyboard                         | 在 WorkspaceComponent 和 ChatComponent 中直接注入 localStorage | 提取 StorageService 适配测试环境 |
 
 #### 核心原则：Oceanus 不需要 Docker（MVP 阶段）
 
@@ -726,6 +949,17 @@ DeepStorm 的 `setup` 命令将 SKILL.md 复制到项目 `.claude/skills/{skill-
 | LLM 可观测性 | **Langfuse（自托管）**             | SDK 调用链追踪、Token 消耗、错误追踪                         |
 | 日志框架     | **Pino + nestjs-pino**             | 日志从文件迁移至 stdout → Loki + Grafana 查询                |
 
+#### 2026-07-26 新增并发控制决策
+
+| 决策         | 选择                                       | 理由                                        |
+| ------------ | ------------------------------------------ | ------------------------------------------- |
+| API Key 管理 | **KeyPool (Least-Used)**                   | 多 Key 轮换避免单 Key 429，使用次数最低优先 |
+| 请求排队     | **内存 FIFO + 信号量**                     | 零依赖，无外部中间件（后续可迁移至 Redis）  |
+| 速率限制     | **@nestjs/throttler v6，双层级**           | 全局 60 RPM + 用户 5 RPM，防止突发流量      |
+| 多进程扩展   | **Node.js 原生 cluster**                   | 零依赖，利用多核 CPU（每 Worker 独立队列）  |
+| 数据库连接   | **DATABASE_URL?connection_limit**          | Prisma v6 构造参数移除，URL 参数配置        |
+| 前端排队提示 | **SSE Queued/QueuePosition/Dequeued 事件** | 实时显示排队位置和预计等待时间              |
+
 #### 2026-07-26 新增日志决策
 
 | 决策              | 选择                                | 理由                                                    |
@@ -876,15 +1110,17 @@ graph TD
 
 ### 5.2 关键路径
 
-| 文件                  | 说明                          |
-| --------------------- | ----------------------------- |
-| `server/src/auth/`    | 认证模块（测试账号登录、JWT） |
-| `server/src/project/` | 项目 CRUD                     |
-| `server/src/session/` | 会话管理 + 级联清理           |
-| `server/src/chat/`    | 消息转发 + SSE 流式推送       |
-| `server/src/agent/`   | Claude Agent SDK 封装         |
-| `server/src/asset/`   | 资产面板                      |
-| `client/src/app/`     | Angular SPA 前端              |
+| 文件                          | 说明                                            |
+| ----------------------------- | ----------------------------------------------- |
+| `server/src/auth/`            | 认证模块（测试账号登录、JWT）                   |
+| `server/src/project/`         | 项目 CRUD                                       |
+| `server/src/session/`         | 会话管理 + 级联清理                             |
+| `server/src/chat/`            | 消息转发 + SSE 流式推送 + 请求队列集成          |
+| `server/src/common/key-pool/` | API Key 池管理（Least-Used 选择、故障标记）     |
+| `server/src/common/queue/`    | FIFO 请求队列（信号量并发控制、排队/取消/出队） |
+| `server/src/agent/`           | Claude Agent SDK 封装                           |
+| `server/src/asset/`           | 资产面板                                        |
+| `client/src/app/`             | Angular SPA 前端                                |
 
 ### 5.3 外部依赖
 

@@ -1,6 +1,8 @@
 import type { Response } from 'express';
 import { BadRequestException, Body, Controller, Get, Param, Post, Res, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import { Logger } from 'nestjs-pino';
 import { SseEventType } from '../agent/types/sse-events';
 import type { SseEvent } from '../agent/types/sse-events';
@@ -11,7 +13,8 @@ import { ChatRequestDto } from './dto/chat-request.dto';
 
 @ApiTags('Chat')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ThrottlerGuard)
+@SkipThrottle()
 @Controller()
 export class ChatController {
   constructor(
@@ -21,6 +24,7 @@ export class ChatController {
 
   @Post('chat')
   @ApiOperation({ summary: '统一聊天端点，根据 action 分发处理' })
+  @SkipThrottle({ global: false, user: false })
   async chat(@Body() dto: ChatRequestDto, @Res() res: Response): Promise<void> {
     this.validateRequest(dto);
 

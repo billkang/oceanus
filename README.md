@@ -286,6 +286,40 @@ make help           # 显示全部可用命令
 
 ---
 
+## 并发与性能架构
+
+Oceanus 内置了完整的并发控制套件，在生产级多用户场景下保障系统稳定性。
+
+### 架构总览
+
+```
+                          ┌─────────────────────────┐
+ Client ──→ Throttler ──→│   RequestQueue (FIFO)    │──→ AgentService ──→ Claude API
+           (限流)         │  MAX_CONCURRENT_LLM=3   │        │
+                          │  REQUEST_QUEUE_MAX=50   │        ├── KeyPoolService (Least-Used)
+                          └─────────────────────────┘        │    LLM_API_KEY_1..N
+                                     │                       │    ANTHROPIC_API_KEY (fallback)
+                                     ▼                       │
+                              Prisma 连接池                  │
+                          (PRISMA_CONNECTION_LIMIT)          ▼
+                                                      Cluster 模式
+                                                    (CLUSTER_ENABLED)
+```
+
+### 组件详解
+
+| 组件                     | 职责                            | 关键环境变量                                                    |
+| ------------------------ | ------------------------------- | --------------------------------------------------------------- |
+| **KeyPool** (Least-Used) | 多 API Key 轮换，避免单 Key 429 | `LLM_API_KEY_1..N`                                              |
+| **RequestQueue** (FIFO)  | 超出并发上限的请求排队等待      | `MAX_CONCURRENT_LLM=3`, `REQUEST_QUEUE_MAX_SIZE=50`             |
+| **Throttler** (速率限制) | 全局 60 RPM + 每用户 5 RPM      | `GLOBAL_RATE_LIMIT_LIMIT`, `USER_RATE_LIMIT_LIMIT`              |
+| **Cluster** (多进程)     | 充分利用多核 CPU，独立进程隔离  | `CLUSTER_ENABLED=true`                                          |
+| **Prisma 连接池**        | 数据库连接复用                  | `PRISMA_CONNECTION_LIMIT` (通过 DATABASE_URL?connection_limit=) |
+
+并发配置参考 `server/.env.example`，支持一键启动。
+
+---
+
 ## 技术栈
 
 | 领域         | 技术选型                            |
@@ -298,6 +332,7 @@ make help           # 显示全部可用命令
 | **包管理**   | pnpm (workspace)                    |
 | **任务编排** | Makefile                            |
 | **可观测性** | Langfuse（可选）                    |
+| **缓存**     | Redis（可选）                       |
 
 ---
 
@@ -322,7 +357,7 @@ oceanus/
 │   │   ├── asset/          # 资产模块
 │   │   ├── auth/           # 认证模块（JWT）
 │   │   ├── chat/           # 对话 + SSE 流
-│   │   ├── common/         # 公共组件（Langfuse 等）
+│   │   ├── common/         # 公共组件（Langfuse, KeyPool, RequestQueue）
 │   │   ├── project/        # 项目模块
 │   │   └── session/        # 会话模块
 │   ├── prisma/

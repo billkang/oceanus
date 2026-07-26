@@ -105,6 +105,18 @@ graph TD
 
 ---
 
+## 新增技术决策（2026-07-26 — /chat 并发性能优化）
+
+| 决策                    | 选择                               | 理由                                         |
+| ----------------------- | ---------------------------------- | -------------------------------------------- |
+| API Key 池              | Least-Used 策略轮询多 Key          | 突破单 Key Rate Limit，多个独立 Key 累加配额 |
+| 速率限制                | `@nestjs/throttler` + JWT 用户级别 | 防刷，与现有认证体系集成                     |
+| 请求队列                | 内存队列 FIFO                      | 超出 LLM API 并发时排队等待，不直接 429      |
+| Cluster 模式            | Node.js 原生 `cluster` 模块        | 利用多核 CPU，不引入 PM2                     |
+| Prisma 连接池           | 显式配置 `connection_limit`        | 根据 worker 数量合理分配连接                 |
+| 队列持久化              | 不做（内存队列，重启丢失）         | MVP 阶段，降低复杂度                         |
+| 水平扩展（Docker 副本） | P2 推迟                            | 当前单容器足够，后续按需                     |
+
 ## 新增技术决策（2026-07-26 — Grafana + Loki 日志收集）
 
 | 决策              | 选择                                            | 理由                                               |
@@ -120,6 +132,7 @@ graph TD
 ## 外部引用更新
 
 - **Brainstorming (Grafana+Loki)**：`_bmad-output/brainstorming/brainstorming-session-2026-07-26-001.md`
+- **Brainstorming (并发性能优化)**：`_bmad-output/brainstorming/brainstorming-session-2026-07-26-001.md`（同一文件覆盖）
 
 ---
 

@@ -13,6 +13,7 @@ import { AssetService } from '../asset/asset.service';
 import { SessionService } from '../session/session.service';
 import { LangfuseService } from '../common/langfuse/langfuse.service';
 import { SessionLogService } from '../common/logging/session-log.service';
+import { RequestQueueService } from '../common/queue/request-queue.service';
 
 /** SSE 事件回调 */
 export type SseEventCallback = (event: SseEvent) => void;
@@ -87,6 +88,7 @@ export class ChatService {
     private readonly assetService: AssetService,
     private readonly langfuseService: LangfuseService,
     private readonly sessionLogService: SessionLogService,
+    private readonly requestQueue: RequestQueueService,
   ) {}
 
   /**
@@ -94,6 +96,8 @@ export class ChatService {
    *
    * 无 sdkSessionId = 首条消息 → 自动捕获 system/init → 懒创建 Session
    * 有 sdkSessionId = 续传 → resume: sessionId
+   *
+   * 请求通过 RequestQueue 分发：并发未满时直接执行，超限时排队等待。
    */
   async sendAndStream(options: SendStreamOptions): Promise<void> {
     const { content, sdkSessionId, projectId, onEvent } = options;
@@ -130,122 +134,144 @@ export class ChatService {
       this.firstUserMessage.set(capturedSdkSessionId ?? 'pending', content.trim());
     }
 
-    // 累加响应文本（用于 PRD 提取和标题生成）
-    let responseText = '';
-    // 从 result 消息中提取的 token 用量
-    let tokenUsage: { inputTokens?: number; outputTokens?: number } | undefined;
+    // 将完整的流式处理逻辑封装为可入队的执行函数
+    const executeStream = async (): Promise<void> => {
+      // 累加响应文本（用于 PRD 提取和标题生成）
+      let responseText = '';
+      let tokenUsage: { inputTokens?: number; outputTokens?: number } | undefined;
 
-    // 内容追踪器，在 mapper 和 main loop 之间传递块级状态
-    const tracker = new ContentTracker();
+      // 内容追踪器，在 mapper 和 main loop 之间传递块级状态
+      const tracker = new ContentTracker();
 
-    try {
-      const result = isFirstMessage
-        ? await this.agentService.sendMessage(content)
-        : await this.agentService.sendMessage(content, { resume: normalizedSessionId! });
+      try {
+        const result = isFirstMessage
+          ? await this.agentService.sendMessage(content)
+          : await this.agentService.sendMessage(content, { resume: normalizedSessionId! });
 
-      const { stream, interrupt } = result;
+        const { stream, interrupt } = result;
 
-      if (!isFirstMessage) {
-        this.activeQueries.set(normalizedSessionId!, { interrupt });
-      }
+        if (!isFirstMessage) {
+          this.activeQueries.set(normalizedSessionId!, { interrupt });
+        }
 
-      for await (const msg of stream) {
-        // 首条消息：捕获 system/init 事件
-        if (isFirstMessage && msg.type === 'system' && (msg as SDKSystemMessage).subtype === 'init') {
-          capturedSdkSessionId = (msg as SDKSystemMessage & { session_id?: string }).session_id;
+        for await (const msg of stream) {
+          // 首条消息：捕获 system/init 事件
+          if (isFirstMessage && msg.type === 'system' && (msg as SDKSystemMessage).subtype === 'init') {
+            capturedSdkSessionId = (msg as SDKSystemMessage & { session_id?: string }).session_id;
 
-          if (capturedSdkSessionId) {
-            // 懒创建 Session 记录
-            const numericProjectId = projectId ? Number(projectId) : 1;
-            await this.sessionService.create(numericProjectId, capturedSdkSessionId);
+            if (capturedSdkSessionId) {
+              // 懒创建 Session 记录
+              const numericProjectId = projectId ? Number(projectId) : 1;
+              await this.sessionService.create(numericProjectId, capturedSdkSessionId);
 
-            // 为 Langfuse trace 创建 Trace（首条消息的 SessionStart hook 无 session_id，在此补充）
-            this.langfuseService.createTrace(capturedSdkSessionId);
+              this.langfuseService.createTrace(capturedSdkSessionId);
 
-            onEvent({
-              type: SseEventType.SessionCreated,
-              data: { sdkSessionId: capturedSdkSessionId },
+              onEvent({
+                type: SseEventType.SessionCreated,
+                data: { sdkSessionId: capturedSdkSessionId },
+              });
+
+              this.activeQueries.set(capturedSdkSessionId, { interrupt });
+              this.messageRoundCount.set(capturedSdkSessionId, 0);
+              this.firstUserMessage.set(capturedSdkSessionId, content.trim());
+
+              this.logger.log(`Session created: ${capturedSdkSessionId}`);
+              this.sessionLogService.log('default', capturedSdkSessionId, 'Session created', {
+                content: content.slice(0, 100),
+              });
+            }
+            continue;
+          }
+
+          // 捕获 result 消息中的 token 用量
+          if (msg.type === 'result' && (msg as SDKResultSuccess).subtype === 'success') {
+            const resultMsg = msg as SDKResultSuccess;
+            if (resultMsg.usage) {
+              tokenUsage = {
+                inputTokens: resultMsg.usage.input_tokens,
+                outputTokens: resultMsg.usage.output_tokens,
+              };
+            }
+            if (capturedSdkSessionId) {
+              this.sessionLogService.log('default', capturedSdkSessionId, 'Query completed', {
+                turns: resultMsg.num_turns,
+                usage: tokenUsage,
+              });
+            }
+            continue;
+          }
+
+          const events = this.mapSdkMessageToSseEvents(msg, tracker);
+          for (const event of events) {
+            if (event.type === SseEventType.MessageDelta) {
+              const deltaContent = (event.data as Record<string, unknown>).content || '';
+              responseText += deltaContent;
+            }
+            onEvent(event);
+          }
+
+          // 处理 thinking 块完成 → 记录到 Langfuse
+          if (tracker.completedThinking !== null && capturedSdkSessionId) {
+            this.langfuseService.recordThinking(capturedSdkSessionId, tracker.completedThinking);
+            this.sessionLogService.log('default', capturedSdkSessionId, 'Thinking block recorded', {
+              thinkingLength: tracker.completedThinking.length,
             });
-
-            this.activeQueries.set(capturedSdkSessionId, { interrupt });
-            this.messageRoundCount.set(capturedSdkSessionId, 0);
-            this.firstUserMessage.set(capturedSdkSessionId, content.trim());
-
-            this.logger.log(`Session created: ${capturedSdkSessionId}`);
-            this.sessionLogService.log('default', capturedSdkSessionId, 'Session created', {
-              content: content.slice(0, 100),
-            });
+            tracker.clearCompletedThinking();
           }
-          continue;
         }
 
-        // 捕获 result 消息中的 token 用量
-        if (msg.type === 'result' && (msg as SDKResultSuccess).subtype === 'success') {
-          const resultMsg = msg as SDKResultSuccess;
-          if (resultMsg.usage) {
-            tokenUsage = {
-              inputTokens: resultMsg.usage.input_tokens,
-              outputTokens: resultMsg.usage.output_tokens,
-            };
+        const finalSessionId = capturedSdkSessionId;
+        if (finalSessionId) {
+          const round = (this.messageRoundCount.get(finalSessionId) ?? 0) + 1;
+          this.messageRoundCount.set(finalSessionId, round);
+
+          if (responseText.trim().length > 0) {
+            this.langfuseService.recordGeneration(finalSessionId, content, responseText, tokenUsage);
           }
-          if (capturedSdkSessionId) {
-            this.sessionLogService.log('default', capturedSdkSessionId, 'Query completed', {
-              turns: resultMsg.num_turns,
-              usage: tokenUsage,
-            });
-          }
-          continue;
+
+          await this.langfuseService.flushTrace(finalSessionId);
+
+          await this.afterStreamComplete(finalSessionId, onEvent, responseText);
         }
 
-        const events = this.mapSdkMessageToSseEvents(msg, tracker);
-        for (const event of events) {
-          if (event.type === SseEventType.MessageDelta) {
-            const deltaContent = (event.data as Record<string, unknown>).content || '';
-            responseText += deltaContent;
-          }
-          onEvent(event);
+        onEvent({ type: SseEventType.StreamComplete, data: {} });
+      } catch (error) {
+        const errMsg = (error as Error).message;
+        this.logger.error(`Chat stream error: ${errMsg}`);
+        if (capturedSdkSessionId) {
+          this.sessionLogService.log('default', capturedSdkSessionId, 'Stream error', { error: errMsg });
         }
-
-        // 处理 thinking 块完成 → 记录到 Langfuse
-        if (tracker.completedThinking !== null && capturedSdkSessionId) {
-          this.langfuseService.recordThinking(capturedSdkSessionId, tracker.completedThinking);
-          this.sessionLogService.log('default', capturedSdkSessionId, 'Thinking block recorded', {
-            thinkingLength: tracker.completedThinking.length,
-          });
-          tracker.clearCompletedThinking();
+        onEvent({ type: SseEventType.Error, data: { message: errMsg } });
+      } finally {
+        if (capturedSdkSessionId) {
+          this.activeQueries.delete(capturedSdkSessionId);
         }
       }
+    };
 
-      const finalSessionId = capturedSdkSessionId;
-      if (finalSessionId) {
-        // 轮次+1
-        const round = (this.messageRoundCount.get(finalSessionId) ?? 0) + 1;
-        this.messageRoundCount.set(finalSessionId, round);
+    // 通过请求队列分发
+    const queueResult = await this.requestQueue.enqueue({
+      sessionId: capturedSdkSessionId ?? 'new',
+      execute: executeStream,
+      onEvent: onEvent as unknown as (event: Record<string, unknown>) => void,
+      enqueuedAt: Date.now(),
+    });
 
-        // 记录 LLM Generation 到 Langfuse（含 token 用量）
-        if (responseText.trim().length > 0) {
-          this.langfuseService.recordGeneration(finalSessionId, content, responseText, tokenUsage);
-        }
-
-        // 刷新 Langfuse 数据（不清理 Trace，保留给多轮对话）
-        await this.langfuseService.flushTrace(finalSessionId);
-
-        await this.afterStreamComplete(finalSessionId, onEvent, responseText);
-      }
-
-      onEvent({ type: SseEventType.StreamComplete, data: {} });
-    } catch (error) {
-      const errMsg = (error as Error).message;
-      this.logger.error(`Chat stream error: ${errMsg}`);
-      if (capturedSdkSessionId) {
-        this.sessionLogService.log('default', capturedSdkSessionId, 'Stream error', { error: errMsg });
-      }
-      onEvent({ type: SseEventType.Error, data: { message: errMsg } });
-    } finally {
-      if (capturedSdkSessionId) {
-        this.activeQueries.delete(capturedSdkSessionId);
-      }
+    if (queueResult.status === 'queued') {
+      onEvent({
+        type: SseEventType.Queued,
+        data: { position: queueResult.position, estimatedWait: queueResult.estimatedWait },
+      });
+    } else if (queueResult.status === 'rejected') {
+      onEvent({
+        type: SseEventType.Error,
+        data: { message: '系统繁忙，请稍后重试' },
+      });
+      return;
     }
+
+    // 等待流处理完成（队列出队后执行或直接执行）
+    await queueResult.executionPromise;
   }
 
   /**
@@ -275,6 +301,14 @@ export class ChatService {
    * 中断当前响应
    */
   async cancelResponse(sdkSessionId: string): Promise<void> {
+    // 先尝试从队列中取消
+    const removed = this.requestQueue.cancel(sdkSessionId);
+    if (removed) {
+      this.logger.debug(`Cancelled queued request for session ${sdkSessionId}`);
+      return;
+    }
+
+    // 不在队列中，走现有中断逻辑
     const query = this.activeQueries.get(sdkSessionId);
     if (query) {
       this.logger.debug(`Interrupting session ${sdkSessionId}`);
@@ -383,9 +417,6 @@ export class ChatService {
 
   /**
    * SDK 消息 → SSE 事件映射
-   *
-   * @param msg SDK 原始消息
-   * @param tracker 内容追踪器，在 mapper 和 main loop 之间传递块级状态
    */
   private mapSdkMessageToSseEvents(msg: SDKMessage, tracker: ContentTracker): SseEvent[] {
     const events: SseEvent[] = [];
@@ -398,10 +429,7 @@ export class ChatService {
         case 'content_block_start': {
           const block = event.content_block;
           if (block.type === 'text') {
-            // 延迟 MessageStart——等到第一个真实 text_delta 到达时再创建气泡，
-            // 避免空白/零长度 text block 产生空的助理气泡
             if (block.text && block.text.trim().length > 0) {
-              // 某些 SDK 版本在 content_block_start 中直接包含文本
               events.push({ type: SseEventType.MessageStart, data: { content: block.text } });
               blockStack.push('text_started');
             } else {
@@ -427,22 +455,18 @@ export class ChatService {
         case 'content_block_delta': {
           const delta = event.delta;
           if (delta.type === 'text_delta') {
-            // 跳过空白/零长度 text_delta——避免用空白内容创建气泡
             if (!delta.text || delta.text.trim().length === 0) {
               break;
             }
-            // text_pending → 首个真实 text delta，发出 MessageStart 创建气泡
             if (blockStack.length > 0 && blockStack[blockStack.length - 1] === 'text_pending') {
               blockStack[blockStack.length - 1] = 'text_started';
               events.push({ type: SseEventType.MessageStart, data: { content: '' } });
             }
             events.push({ type: SseEventType.MessageDelta, data: { content: delta.text } });
           } else if (delta.type === 'thinking_delta') {
-            // 累积 thinking 内容到 tracker
             if (delta.thinking) {
               tracker.appendThinkingText(delta.thinking);
             }
-            // 也转发到前端，让用户可以看到思考过程
             if (delta.thinking && delta.thinking.trim().length > 0) {
               events.push({ type: SseEventType.MessageDelta, data: { content: delta.thinking } });
             }
@@ -456,24 +480,20 @@ export class ChatService {
         case 'content_block_stop': {
           const prev = blockStack.pop();
           if (prev === 'text_started') {
-            // 有内容的 text block 结束 → 标记对应气泡为 Complete
             events.push({ type: SseEventType.MessageDone, data: {} });
           } else if (prev === 'tool_use') {
             events.push({ type: SseEventType.ToolComplete, data: {} });
           } else if (prev === 'thinking') {
-            // 将完整 thinking 内容传递给 main loop（通过 tracker）
             tracker.markThinkingComplete();
             events.push({
               type: SseEventType.ToolInProgress,
               data: { status: '思考结束，正在生成回复...' },
             });
           }
-          // prev === 'text_pending'：空 text block（无实际内容），直接忽略
           break;
         }
         case 'message_start':
         case 'message_delta':
-          // 暂不需要处理
           break;
         case 'message_stop': {
           blockStack.length = 0;

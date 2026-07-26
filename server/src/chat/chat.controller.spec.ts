@@ -2,6 +2,7 @@ import { JwtService } from '@nestjs/jwt';
 import type { TestingModule } from '@nestjs/testing';
 import { Test } from '@nestjs/testing';
 import { Logger } from 'nestjs-pino';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
 
@@ -29,6 +30,7 @@ describe('ChatController', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
+      imports: [ThrottlerModule.forRoot({ throttlers: [{ name: 'global', ttl: 60000, limit: 100 }] })],
       controllers: [ChatController],
       providers: [
         { provide: ChatService, useValue: mockChatService },
@@ -47,10 +49,12 @@ describe('ChatController', () => {
 
   describe('POST /api/v1/chat — action: message', () => {
     it('发送消息（无 sessionId = 首条）', async () => {
-      await controller.chat(
-        { action: 'message', content: '你好', projectId: '1' },
-        { setHeader: vi.fn(), flushHeaders: vi.fn(), write: vi.fn(), end: vi.fn() } as any,
-      );
+      await controller.chat({ action: 'message', content: '你好', projectId: '1' }, {
+        setHeader: vi.fn(),
+        flushHeaders: vi.fn(),
+        write: vi.fn(),
+        end: vi.fn(),
+      } as any);
 
       expect(chatService.sendAndStream).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -63,10 +67,12 @@ describe('ChatController', () => {
     });
 
     it('发送消息（有 sessionId = 续传）', async () => {
-      await controller.chat(
-        { action: 'message', content: '继续', sessionId: 'sdk-uuid-abc' },
-        { setHeader: vi.fn(), flushHeaders: vi.fn(), write: vi.fn(), end: vi.fn() } as any,
-      );
+      await controller.chat({ action: 'message', content: '继续', sessionId: 'sdk-uuid-abc' }, {
+        setHeader: vi.fn(),
+        flushHeaders: vi.fn(),
+        write: vi.fn(),
+        end: vi.fn(),
+      } as any);
 
       expect(chatService.sendAndStream).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -79,20 +85,19 @@ describe('ChatController', () => {
 
     it('action=message 缺少 content 时应抛出 400', async () => {
       await expect(
-        controller.chat(
-          { action: 'message' as any, sessionId: 'sdk-uuid' },
-          { setHeader: vi.fn() } as any,
-        ),
+        controller.chat({ action: 'message' as any, sessionId: 'sdk-uuid' }, { setHeader: vi.fn() } as any),
       ).rejects.toThrow();
     });
   });
 
   describe('POST /api/v1/chat — action: confirm', () => {
     it('确认选择应调用 confirmAndStream', async () => {
-      await controller.chat(
-        { action: 'confirm', sessionId: 'sdk-uuid-abc', confirmOption: '方案A' },
-        { setHeader: vi.fn(), flushHeaders: vi.fn(), write: vi.fn(), end: vi.fn() } as any,
-      );
+      await controller.chat({ action: 'confirm', sessionId: 'sdk-uuid-abc', confirmOption: '方案A' }, {
+        setHeader: vi.fn(),
+        flushHeaders: vi.fn(),
+        write: vi.fn(),
+        end: vi.fn(),
+      } as any);
 
       expect(chatService.confirmAndStream).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -105,30 +110,36 @@ describe('ChatController', () => {
 
     it('action=confirm 缺少 confirmOption 时应抛出 400', async () => {
       await expect(
-        controller.chat(
-          { action: 'confirm' as any, sessionId: 'sdk-uuid' },
-          { setHeader: vi.fn(), flushHeaders: vi.fn(), write: vi.fn(), end: vi.fn() } as any,
-        ),
+        controller.chat({ action: 'confirm' as any, sessionId: 'sdk-uuid' }, {
+          setHeader: vi.fn(),
+          flushHeaders: vi.fn(),
+          write: vi.fn(),
+          end: vi.fn(),
+        } as any),
       ).rejects.toThrow();
     });
   });
 
   describe('POST /api/v1/chat — action: cancel', () => {
     it('取消应调用 cancelResponse', async () => {
-      await controller.chat(
-        { action: 'cancel', sessionId: 'sdk-uuid-abc' },
-        { setHeader: vi.fn(), flushHeaders: vi.fn(), write: vi.fn(), end: vi.fn() } as any,
-      );
+      await controller.chat({ action: 'cancel', sessionId: 'sdk-uuid-abc' }, {
+        setHeader: vi.fn(),
+        flushHeaders: vi.fn(),
+        write: vi.fn(),
+        end: vi.fn(),
+      } as any);
 
       expect(chatService.cancelResponse).toHaveBeenCalledWith('sdk-uuid-abc');
     });
 
     it('action=cancel 缺少 sessionId 时应抛出 400', async () => {
       await expect(
-        controller.chat(
-          { action: 'cancel' as any },
-          { setHeader: vi.fn(), flushHeaders: vi.fn(), write: vi.fn(), end: vi.fn() } as any,
-        ),
+        controller.chat({ action: 'cancel' as any }, {
+          setHeader: vi.fn(),
+          flushHeaders: vi.fn(),
+          write: vi.fn(),
+          end: vi.fn(),
+        } as any),
       ).rejects.toThrow();
     });
   });
@@ -136,10 +147,12 @@ describe('ChatController', () => {
   describe('POST /api/v1/chat — 无效 action', () => {
     it('未知 action 应抛出 400', async () => {
       await expect(
-        controller.chat(
-          { action: 'invalid' as any },
-          { setHeader: vi.fn(), flushHeaders: vi.fn(), write: vi.fn(), end: vi.fn() } as any,
-        ),
+        controller.chat({ action: 'invalid' as any }, {
+          setHeader: vi.fn(),
+          flushHeaders: vi.fn(),
+          write: vi.fn(),
+          end: vi.fn(),
+        } as any),
       ).rejects.toThrow();
     });
   });
