@@ -41,32 +41,31 @@ import { HealthModule } from './health/health.module';
             statusCode: res.statusCode,
           }),
         },
-        transport: {
-          targets: [
-            // 开发环境：控制台美化输出
-            ...(process.env.NODE_ENV !== 'production'
-              ? [
-                  {
-                    target: 'pino-pretty',
-                    options: { colorize: true, translateTime: 'HH:MM:ss', ignore: 'pid,hostname' },
-                    level: 'debug',
-                  },
-                ]
-              : [
-                  {
-                    target: 'pino/file',
-                    options: { destination: 1 },
-                    level: 'warn',
-                  },
-                ]),
-            // 始终写入文件
-            {
-              target: 'pino/file',
-              options: { destination: './logs/combined.log', mkdir: true },
-              level: 'info',
-            },
-          ],
-        },
+        ...(() => {
+          // 解析日志级别
+          const logLevel = process.env.LOG_LEVEL || (process.env.NODE_ENV === 'production' ? 'info' : 'debug');
+          const validLevels = ['fatal', 'error', 'warn', 'info', 'debug', 'trace'];
+          const effectiveLevel = validLevels.includes(logLevel) ? logLevel : 'info';
+
+          if (effectiveLevel !== logLevel) {
+            console.warn(`Invalid LOG_LEVEL "${logLevel}", falling back to "info"`);
+          }
+
+          const target =
+            process.env.NODE_ENV !== 'production'
+              ? {
+                  target: 'pino-pretty',
+                  options: { colorize: true, translateTime: 'HH:MM:ss', ignore: 'pid,hostname' },
+                  level: effectiveLevel,
+                }
+              : {
+                  target: 'pino/file',
+                  options: { destination: 1 },
+                  level: effectiveLevel,
+                };
+
+          return { transport: { targets: [target] } };
+        })(),
       },
     }),
     PrismaModule,
