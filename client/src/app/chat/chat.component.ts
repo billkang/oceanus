@@ -46,6 +46,14 @@ interface TitleUpdatedData {
 interface ErrorEventData {
   message: string;
 }
+interface QueuedData {
+  position: number;
+  estimatedWait: string;
+}
+interface QueuePositionData {
+  position: number;
+  totalBefore: number;
+}
 
 /* ── 历史消息数据类型 ── */
 interface ContentBlock {
@@ -89,6 +97,8 @@ export class ChatComponent implements OnDestroy {
   readonly isStreaming = signal(false);
   readonly showScrollButton = signal(false);
   readonly canSend = computed(() => this.chatModel().message.trim().length > 0 && !this.isStreaming());
+  readonly queuePosition = signal<number | null>(null);
+  readonly estimatedWait = signal('');
 
   private messageIdCounter = 0;
   /** 用户是否主动滚到了历史区域（不在底部） */
@@ -332,6 +342,25 @@ export class ChatComponent implements OnDestroy {
         break;
 
       case SseEventType.SseError:
+        break;
+
+      case SseEventType.Queued: {
+        const qd = event.data as unknown as QueuedData;
+        this.queuePosition.set(qd.position);
+        this.estimatedWait.set(qd.estimatedWait || '');
+        this.isStreaming.set(true); // Keep input disabled while queued
+        break;
+      }
+
+      case SseEventType.QueuePosition: {
+        const qpd = event.data as unknown as QueuePositionData;
+        this.queuePosition.set(qpd.position);
+        break;
+      }
+
+      case SseEventType.Dequeued:
+        this.queuePosition.set(null);
+        this.estimatedWait.set('');
         break;
 
       default:

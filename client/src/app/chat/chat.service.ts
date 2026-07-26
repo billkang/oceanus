@@ -19,6 +19,9 @@ export enum SseEventType {
   Error = 'error',
   AiNotConfigured = 'ai_not_configured',
   SseError = 'sse_error',
+  Queued = 'queued',
+  QueuePosition = 'queue_position',
+  Dequeued = 'dequeued',
 }
 
 /** SSE 事件 */
@@ -56,11 +59,13 @@ export class ChatService {
    * 发送消息（首条 or 续传），返回 AbortController 用于中断
    * SSE 事件通过 onEvent 回调实时推送
    */
-  sendMessage(options: {
-    content: string;
-    sessionId?: string;
-    projectId?: number;
-  } & SseStreamCallbacks): AbortController {
+  sendMessage(
+    options: {
+      content: string;
+      sessionId?: string;
+      projectId?: number;
+    } & SseStreamCallbacks,
+  ): AbortController {
     const abortController = new AbortController();
 
     const body: Record<string, unknown> = {
@@ -78,10 +83,12 @@ export class ChatService {
   /**
    * 确认选择，返回 AbortController
    */
-  confirmChoice(options: {
-    sessionId: string;
-    confirmOption: string;
-  } & SseStreamCallbacks): AbortController {
+  confirmChoice(
+    options: {
+      sessionId: string;
+      confirmOption: string;
+    } & SseStreamCallbacks,
+  ): AbortController {
     const abortController = new AbortController();
 
     const body = {
@@ -170,7 +177,9 @@ export class ChatService {
         try {
           const parsed = JSON.parse(buffer.slice(6));
           onEvent({ type: currentEvent, data: parsed.data ?? parsed });
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       }
 
       onComplete?.();

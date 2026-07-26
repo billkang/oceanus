@@ -7,6 +7,7 @@ import { SessionService } from '../session/session.service';
 import { AssetService } from '../asset/asset.service';
 import { LangfuseService } from '../common/langfuse/langfuse.service';
 import { SessionLogService } from '../common/logging/session-log.service';
+import { RequestQueueService } from '../common/queue/request-queue.service';
 
 describe('ChatService', () => {
   let service: ChatService;
@@ -51,6 +52,19 @@ describe('ChatService', () => {
     closeSession: vi.fn(),
   };
 
+  const mockRequestQueue = {
+    enqueue: vi.fn().mockImplementation(async (req: { execute: () => Promise<void> }) => {
+      // Execute immediately (simulates direct execution path)
+      const executionPromise = req.execute();
+      return {
+        status: 'executed' as const,
+        executionPromise,
+      };
+    }),
+    cancel: vi.fn().mockReturnValue(false),
+    getQueuePosition: vi.fn().mockReturnValue(null),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -61,6 +75,7 @@ describe('ChatService', () => {
         { provide: AssetService, useValue: mockAssetService },
         { provide: LangfuseService, useValue: mockLangfuseService },
         { provide: SessionLogService, useValue: mockSessionLogService },
+        { provide: RequestQueueService, useValue: mockRequestQueue },
       ],
     }).compile();
 
@@ -159,9 +174,7 @@ describe('ChatService', () => {
     });
 
     it('空消息应抛出错误', async () => {
-      await expect(
-        service.sendAndStream({ content: '', onEvent: vi.fn() }),
-      ).rejects.toThrow('消息内容不能为空');
+      await expect(service.sendAndStream({ content: '', onEvent: vi.fn() })).rejects.toThrow('消息内容不能为空');
     });
   });
 
@@ -170,7 +183,10 @@ describe('ChatService', () => {
 
     it('续传应调用 sendMessage 带 resume: sessionId', async () => {
       mockSessionService.getBySdkSessionId.mockResolvedValue({
-        id: 1, sdkSessionId: SDK_SESSION_ID, title: '新会话', projectId: 1,
+        id: 1,
+        sdkSessionId: SDK_SESSION_ID,
+        title: '新会话',
+        projectId: 1,
       });
 
       const mockGen = (async function* () {
@@ -190,7 +206,10 @@ describe('ChatService', () => {
 
     it('续传不应创建新 session', async () => {
       mockSessionService.getBySdkSessionId.mockResolvedValue({
-        id: 1, sdkSessionId: SDK_SESSION_ID, title: '新会话', projectId: 1,
+        id: 1,
+        sdkSessionId: SDK_SESSION_ID,
+        title: '新会话',
+        projectId: 1,
       });
 
       const mockGen = (async function* () {
@@ -200,7 +219,9 @@ describe('ChatService', () => {
 
       const events: any[] = [];
       await service.sendAndStream({
-        content: '继续说', sdkSessionId: SDK_SESSION_ID, onEvent: (e) => events.push(e),
+        content: '继续说',
+        sdkSessionId: SDK_SESSION_ID,
+        onEvent: (e) => events.push(e),
       });
 
       expect(sessionService.create).not.toHaveBeenCalled();
@@ -266,7 +287,8 @@ describe('ChatService', () => {
 
       const events: any[] = [];
       await service.sendAndStream({
-        content: 'hello', sdkSessionId: 'sdk-uuid',
+        content: 'hello',
+        sdkSessionId: 'sdk-uuid',
         onEvent: (e) => events.push(e),
       });
 
@@ -278,8 +300,10 @@ describe('ChatService', () => {
       const mockGen = (async function* () {
         yield { type: 'system', subtype: 'init', session_id: 'sdk-uuid' };
         yield {
-          type: 'prompt_suggestion', suggestion: '帮我总结一下',
-          uuid: 'uuid-1', session_id: 'sdk-uuid',
+          type: 'prompt_suggestion',
+          suggestion: '帮我总结一下',
+          uuid: 'uuid-1',
+          session_id: 'sdk-uuid',
         } as any;
         yield { type: 'assistant', message: { content: [] } } as any;
       })();
@@ -311,7 +335,10 @@ describe('ChatService', () => {
   describe('confirmAndStream', () => {
     it('confirm 应调用 sendMessage 带 resume 和 confirmOption 作为 content', async () => {
       mockSessionService.getBySdkSessionId.mockResolvedValue({
-        id: 1, sdkSessionId: 'sdk-uuid', title: '新会话', projectId: 1,
+        id: 1,
+        sdkSessionId: 'sdk-uuid',
+        title: '新会话',
+        projectId: 1,
       });
 
       const mockGen = (async function* () {
@@ -350,7 +377,7 @@ describe('ChatService', () => {
 
       void service.sendAndStream({ content: 'hi', onEvent: vi.fn() });
 
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
 
       await service.cancelResponse('sdk-uuid-new'); // doesn't match the key used in activeQueries
       // For first message, there's no sdkSessionId before init, so let me adjust

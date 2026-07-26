@@ -10,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { Logger } from 'nestjs-pino';
 import * as path from 'node:path';
 import { LangfuseService } from '../common/langfuse/langfuse.service';
+import { KeyPoolService } from '../common/key-pool/key-pool.service';
 import { FileSystemSessionStore } from './stores/file-system.store';
 
 /**
@@ -18,6 +19,11 @@ import { FileSystemSessionStore } from './stores/file-system.store';
  * 封装 Claude Agent SDK，提供 AI 需求讨论能力。
  * 仅负责 SDK query() 的创建和生命周期管理。
  * 会话连续性（首条/续传）通过传入 resume 参数控制。
+ *
+ * API Key 通过 KeyPoolService 管理：支持多 Key Least-Used 轮换，
+ * 调用 query() 前设置 process.env.ANTHROPIC_API_KEY 实现 Key 注入。
+ * 由于 RequestQueue 限制了最大并发（MAX_CONCURRENT_LLM=3），
+ * 环境变量切换的竞态风险在可控范围内。
  */
 @Injectable()
 export class AgentService {
@@ -28,6 +34,7 @@ export class AgentService {
     private readonly logger: Logger,
     private readonly configService: ConfigService,
     private readonly langfuseService: LangfuseService,
+    private readonly keyPool: KeyPoolService,
   ) {
     const apiKey = this.configService.get<string>('ANTHROPIC_API_KEY');
     this.available = !!apiKey;
@@ -39,9 +46,9 @@ export class AgentService {
     this.sessionStore = new FileSystemSessionStore(storeDir);
   }
 
-  /** AI 服务是否已配置 */
+  /** AI 服务是否已配置（ANTHROPIC_API_KEY 或 KeyPool 中有 Key 即可用） */
   isAvailable(): boolean {
-    return this.available;
+    return this.available || this.keyPool.getKeyCount() > 0;
   }
 
   /**
@@ -52,28 +59,34 @@ export class AgentService {
    * @returns stream + interrupt
    */
   async sendMessage(content: string, options?: { resume?: string }) {
-    if (!this.available) {
+    if (!this.isAvailable()) {
       throw new Error('AI 服务未配置');
     }
 
     this.logger.debug(`Sending message (resume=${options?.resume ?? 'new session'})`);
+
+    // 从 KeyPool 选择 API Key
+    const selectedKey = await this.keyPool.select();
+    const originalKey = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = selectedKey;
 
     const sessionOptions: Record<string, unknown> = {};
     if (options?.resume) {
       sessionOptions.resume = options.resume;
     }
 
-    const q = query({
-      prompt: content,
-      options: {
-        ...sessionOptions,
-        sessionStore: this.sessionStore,
-        includePartialMessages: true,
-        agent: 'oceanus-tide',
-        agents: {
-          'oceanus-tide': {
-            description: 'Oceanus 需求讨论助手',
-            prompt: `你是 Oceanus 需求讨论助手，运行在 Oceanus AI 协作平台（网页版）。
+    try {
+      const q = query({
+        prompt: content,
+        options: {
+          ...sessionOptions,
+          sessionStore: this.sessionStore,
+          includePartialMessages: true,
+          agent: 'oceanus-tide',
+          agents: {
+            'oceanus-tide': {
+              description: 'Oceanus 需求讨论助手',
+              prompt: `你是 Oceanus 需求讨论助手，运行在 Oceanus AI 协作平台（网页版）。
 
 ⚠️ 重要环境差异：你在网页聊天环境中运行，不是 Claude Code 终端。
 - 不要要求用户执行 /clear 命令（网页中无效）
@@ -86,30 +99,36 @@ export class AgentService {
   调用 Skill 工具加载 tide-discuss 工作流
 - 进入 tide-discuss 后，严格按照其工作流引导用户完成需求收敛
 - 项目位于 /Users/billkang/workspace/oceanus，已安装 tide-discuss skill`,
-            tools: ['Skill', 'Read', 'Write', 'Bash', 'Grep', 'Glob', 'Edit', 'WebSearch', 'WebFetch'],
+              tools: ['Skill', 'Read', 'Write', 'Bash', 'Grep', 'Glob', 'Edit', 'WebSearch', 'WebFetch'],
+            },
           },
+          skills: 'all',
+          settingSources: ['project'],
+          model: 'claude-sonnet-5',
+          effort: 'low',
+          thinking: { type: 'enabled', budgetTokens: 4000 },
+          maxTurns: 20,
+          ...this.buildLangfuseHooks(),
         },
-        skills: 'all',
-        settingSources: ['project'],
-        model: 'claude-sonnet-5',
-        effort: 'low',
-        thinking: { type: 'enabled', budgetTokens: 4000 },
-        maxTurns: 20,
-        ...this.buildLangfuseHooks(),
-      },
-    });
+      });
 
-    return {
-      stream: q,
-      interrupt: () => q.interrupt(),
-    };
+      return {
+        stream: q,
+        interrupt: () => q.interrupt(),
+      };
+    } catch (err) {
+      // 标记 Key 故障
+      this.keyPool.markFailure(selectedKey).catch((e) => {
+        this.logger.error(`Failed to mark key failure: ${e}`);
+      });
+      throw err;
+    } finally {
+      process.env.ANTHROPIC_API_KEY = originalKey;
+    }
   }
 
   /**
    * 构建 Langfuse 可观测性 hooks
-   *
-   * 在 SDK 会话的各个生命周期点创建/更新/销毁 Trace。
-   * LangfuseService 可选——LANGFUSE 环境变量未配置时静默跳过。
    */
   private buildLangfuseHooks(): Record<string, unknown> {
     const lf = this.langfuseService;
@@ -164,7 +183,6 @@ export class AgentService {
             hooks: [
               (input: SessionEndHookInput) => {
                 if (input?.session_id) {
-                  // 只刷新数据到 Langfuse，不清理 Trace，以支持多轮对话续传
                   return lf.flushTrace(input.session_id).then(() => ({ continue: true }));
                 }
                 return Promise.resolve({ continue: true });
