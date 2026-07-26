@@ -1,0 +1,10 @@
+# Oceanus Grafana Dashboard Provider
+apiVersion: 1
+
+providers:
+  - name: Oceanus
+    type: file
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: false

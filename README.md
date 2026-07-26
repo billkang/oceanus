@@ -99,6 +99,9 @@ make client-dev   # 终端 2 — 前端
 | Client           | `oceanus-client`           | 80          | Angular 前端 (Nginx)     | `app`    |
 | GlitchTip Web    | `oceanus-glitchtip-web`    | 8000        | 错误追踪控制台           | `app`    |
 | GlitchTip Worker | `oceanus-glitchtip-worker` | —           | 错误事件异步处理器       | `app`    |
+| Loki             | `oceanus-loki`             | 3100        | 日志存储                 | `app`    |
+| Promtail         | `oceanus-promtail`         | —           | 日志采集                 | `app`    |
+| Grafana          | `oceanus-grafana`          | 3002        | 日志可视化控制台         | `app`    |
 
 ### 日常命令
 
@@ -197,6 +200,56 @@ glitchtipDsn: 'http://<key>@localhost:8000/<project_id>',
 
 ---
 
+## Grafana + Loki 日志收集
+
+Oceanus 使用 Grafana + Loki + Promtail 栈实现集中式日志查询。后端 Pino 日志输出到 stdout，由 Promtail 采集推送至 Loki，通过 Grafana 统一查询。
+
+### 前提
+
+启动 app profile 即可：
+
+```bash
+docker compose --profile app up -d
+```
+
+### 访问 Grafana
+
+```bash
+open http://localhost:3002
+```
+
+Grafana 已自动配置 Loki 数据源和 "Oceanus 日志" 仪表盘，包含三个面板：
+
+| 面板         | 用途                       |
+| ------------ | -------------------------- |
+| 实时日志流   | 按时间倒序查看全部日志     |
+| 日志级别分布 | 柱状图展示各级别日志数量   |
+| 日志时间序列 | 折线图展示日志量随时间变化 |
+
+### 控制日志级别
+
+编辑 `server/.env`：
+
+```env
+LOG_LEVEL=info
+```
+
+可选值：`fatal` / `error` / `warn` / `info` / `debug` / `trace`
+
+未设置时默认：**production 环境为 `info`**，其他环境为 `debug`。设置不合法值回退到 `info` 并输出警告。
+
+### 架构
+
+```
+Pino (NestJS) ──stdout──▶ Docker ──logs──▶ Promtail ──push──▶ Loki ──query──▶ Grafana
+  ▲ LOG_LEVEL                     Promtail 仅采集              7 天保留期      预配置数据源
+    控制输出级别                  oceanus-server 容器                             + 仪表盘
+```
+
+> **注意：** Grafana 无用户认证（内网环境）。SessionLogService 保持独立文件日志不变，不受此影响。
+
+---
+
 ## 脚本速查
 
 全部命令在项目根目录执行。Makefile 负责基础设施编排（Docker、数据库），开发命令委托给 pnpm。
@@ -280,7 +333,11 @@ oceanus/
 │   ├── oceanus-system-overview.md   # ← 系统设计总览
 │   ├── presentation.html            # 项目演示文稿
 │   └── diagrams/                    # 架构图（.mmd + .svg）
-├── docker-compose.yml      # PostgreSQL + Redis + ClickHouse + MinIO + Langfuse (Web + Worker)
+├── infra/                  # 基础设施配置
+│   ├── loki/               # Loki 日志存储配置
+│   ├── promtail/           # Promtail 日志采集配置
+│   └── grafana/            # Grafana 预配置（数据源 + 仪表盘）
+├── docker-compose.yml      # PostgreSQL + Redis + ClickHouse + MinIO + Langfuse + Loki + Promtail + Grafana
 ├── pnpm-workspace.yaml     # pnpm workspace 配置
 ├── Makefile                # 命令集中编排
 ├── server/.env.example     # 环境变量模板

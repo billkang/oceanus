@@ -170,6 +170,54 @@ services:
       LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
       LANGFUSE_S3_EVENT_UPLOAD_PREFIX: "events/"
 
+  # ── Loki（日志存储）───────────────────────────────────────────
+  loki:
+    profiles: [app]
+    image: grafana/loki:latest
+    container_name: oceanus-loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./infra/loki:/etc/loki
+      - loki_data:/loki
+    command: -config.file=/etc/loki/loki-config.yml
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3100/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Promtail（日志采集）───────────────────────────────────────
+  promtail:
+    profiles: [app]
+    image: grafana/promtail:latest
+    container_name: oceanus-promtail
+    restart: unless-stopped
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./infra/promtail:/etc/promtail
+    command: -config.file=/etc/promtail/promtail-config.yml
+    depends_on:
+      loki:
+        condition: service_healthy
+
+  # ── Grafana（日志可视化）────────────────────────────────────
+  grafana:
+    profiles: [app]
+    image: grafana/grafana:latest
+    container_name: oceanus-grafana
+    restart: unless-stopped
+    ports:
+      - "3002:3000"
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      loki:
+        condition: service_healthy
+
   # ═══════════════════════════════════════════════════════════════
   # App Profile 服务（--profile app）
   # ═══════════════════════════════════════════════════════════════
@@ -188,6 +236,7 @@ services:
       JWT_SECRET: dev-secret-change-in-production
       CORS_ORIGIN: http://localhost
       GLITCHTIP_DSN: http://glitchtip-web:8000/1
+      LOG_LEVEL: info
     depends_on:
       postgres:
         condition: service_healthy
@@ -246,3 +295,5 @@ volumes:
   redis_data:
   clickhouse_data:
   minio_data:
+  loki_data:
+  grafana_data:

@@ -105,4 +105,22 @@ graph TD
 
 ---
 
+## 新增技术决策（2026-07-26 — Grafana + Loki 日志收集）
+
+| 决策              | 选择                                            | 理由                                               |
+| ----------------- | ----------------------------------------------- | -------------------------------------------------- |
+| 集中式日志查询    | Grafana + Loki（自托管 Docker）                 | 不上云、轻量、与现有 GlitchTip 共用 Grafana 仪表盘 |
+| 日志采集          | Promtail → push Loki                            | 标准 Grafana 栈，按标签索引，不依赖全文索引        |
+| Pino 输出目标     | 只输出 stdout（fd 1），移除文件目标             | Docker 统一采集 stdout，不再写本地文件             |
+| 日志级别控制      | 新增 `LOG_LEVEL` 环境变量，取代 NODE_ENV 硬编码 | 开发/生产独立控制，默认 `info`                     |
+| 日志保留期        | 7 天                                            | 短期保留，长期归档暂不考虑                         |
+| 文件日志          | 移除 `./logs/combined.log` 和所有文件日志配置   | 由 Loki 替代文件存储                               |
+| SessionLogService | 保持现状，不迁移                                | 独立于应用日志，后续视需求评估                     |
+
+## 外部引用更新
+
+- **Brainstorming (Grafana+Loki)**：`_bmad-output/brainstorming/brainstorming-session-2026-07-26-001.md`
+
+---
+
 > 维护：首次填充于 2026-07-23 reef-start Phase 1。有新的技术决策或踩坑时追加。
