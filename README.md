@@ -15,7 +15,7 @@
 ### 前置条件
 
 - Node.js >= 24
-- pnpm >= 9
+- pnpm 11.17.0（corepack 自动管控）
 - Docker（最新版）
 
 ### 安装并启动

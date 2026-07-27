@@ -1,7 +1,9 @@
-import type { OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import type { OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Injectable } from '@nestjs/common';
-import { Logger } from 'nestjs-pino';
 import { PrismaClient } from '@prisma/client';
+import { raw } from '@prisma/client/runtime/library';
+import type { PrismaPromise } from '@prisma/client/runtime/library';
+import { Logger } from 'nestjs-pino';
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
@@ -21,6 +23,14 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     super(opts);
 
     this.poolSize = poolSize && !Number.isNaN(poolSize) ? poolSize : null;
+  }
+
+  /**
+   * Execute a raw SQL query string.
+   * Provided for @nestjs/terminus PrismaHealthIndicator compatibility.
+   */
+  $queryRawUnsafe<T = unknown>(query: string, ...values: unknown[]): PrismaPromise<T> {
+    return this.$queryRaw(raw(query), ...values) as PrismaPromise<T>;
   }
 
   async onModuleInit() {

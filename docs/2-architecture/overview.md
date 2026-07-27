@@ -26,7 +26,6 @@ flowchart TB
         Chat[Chat Module<br/>SSE + RequestQueue]
         Session[Session Manager]
         Agent[Agent SDK 封装]
-        Asset[Asset 提取]
     end
     subgraph SDK[Claude Agent SDK]
         SdkLoop[tool_use 循环<br/>流事件]
@@ -44,15 +43,15 @@ flowchart TB
     SDK -->|Skills| Skills
     Orchestrator -->|Prisma| PG
     SDK -->|JSONL| JSONL
-    Orchestrator -->|OTel| Langfuse
+    SDK -->|OTel| Langfuse
     Orchestrator -->|stdout → Promtail| Loki
 ```
 
 | 层                   | 职责                                                                      |
 | -------------------- | ------------------------------------------------------------------------- |
 | **Web Portal**       | UI 展示、用户交互、SSE 流式渲染、资产管理                                 |
-| **Oceanus 编排层**   | 会话管理、上下文窗口、SSE 桥接、资产提取、模型路由、请求队列              |
-| **Claude Agent SDK** | Agent 循环、Skill 执行、MCP 工具调用、OTel 可观测性                       |
+| **Oceanus 编排层**   | 会话管理、SSE 桥接、模型路由、请求队列                                    |
+| **Claude Agent SDK** | Agent 循环、Skill 执行、MCP 工具调用、上下文窗口、OTel 可观测性           |
 | **基础设施**         | PostgreSQL（映射关系）、JSONL（消息内容）、Loki（日志）、Langfuse（追踪） |
 
 **核心原则：SDK 负责循环，Oceanus 负责编排。** SDK 内部的 tool_use 循环是黑盒，Oceanus 通过 stream_event 监听但不控制。
