@@ -2,7 +2,7 @@
   "name": "oceanus",
   "version": "0.1.0",
   "private": true,
-  "packageManager": "pnpm@10.7.0",
+  "packageManager": "pnpm@11.17.0",
   "description": "Oceanus MVP — AI-powered PM需求讨论平台",
   "scripts": {
     "dev": "pnpm --filter @oceanus/server start:dev & pnpm --filter @oceanus/client start",

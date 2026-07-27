@@ -24,7 +24,7 @@ export function isArchived(changePath) {
 export function parseTasksStatus(content) {
   const matches = [...content.matchAll(TASKS_CHECKBOX_RE)];
   const total = matches.length;
-  const complete = matches.filter(m => m[1] !== ' ').length;
+  const complete = matches.filter((m) => m[1] !== ' ').length;
   return {
     total,
     complete,
@@ -36,16 +36,14 @@ export function scanChanges(changesDir) {
   if (!existsSync(changesDir)) return [];
   const entries = readdirSync(changesDir, { withFileTypes: true });
   return entries
-    .filter(e => e.isDirectory() && e.name !== 'archive')
-    .map(e => {
+    .filter((e) => e.isDirectory() && e.name !== 'archive')
+    .map((e) => {
       const dirPath = join(changesDir, e.name);
       const tasksPath = join(dirPath, 'tasks.md');
       const hasTasksMd = existsSync(tasksPath);
       let tasksStatus = null;
       if (hasTasksMd) {
-        tasksStatus = parseTasksStatus(
-          readFileSync(tasksPath, 'utf8')
-        );
+        tasksStatus = parseTasksStatus(readFileSync(tasksPath, 'utf8'));
       }
       return {
         name: e.name,
@@ -80,12 +78,8 @@ check-openspec-status.mjs — 扫描 OpenSpec change 状态
   const branchIdx = process.argv.indexOf('--branch');
   if (branchIdx >= 0) {
     const branch = process.argv[branchIdx + 1];
-    const matched = results.filter(r =>
-      r.name === branch || branch.includes(r.name)
-    );
-    process.stdout.write(JSON.stringify(
-      matched.length > 0 ? matched : { noMatch: true, branch }, null, 2
-    ) + '\n');
+    const matched = results.filter((r) => r.name === branch || branch.includes(r.name));
+    process.stdout.write(JSON.stringify(matched.length > 0 ? matched : { noMatch: true, branch }, null, 2) + '\n');
   } else {
     process.stdout.write(JSON.stringify(results, null, 2) + '\n');
   }

@@ -13,6 +13,10 @@
  *   node mcp-manager.mjs --status [--port 54321]
  *   node mcp-manager.mjs --stop [--port 54321]
  *   import { ensureMcp, stopMcp, getStatus } from './mcp-manager.mjs'
+ *
+ * Cross-platform note:
+ *   所有系统调用均兼容 macOS / Linux / Windows。
+ *   使用 Node.js 内置 API 替代 lsof / ps / sleep / SIGKILL 等 Unix-only 命令。
  */
 
 import { execSync, spawn } from 'node:child_process';
@@ -20,16 +24,39 @@ import { execSync, spawn } from 'node:child_process';
 const DEFAULT_PORT = 54321;
 const MCP_PACKAGE = '@playwright/mcp';
 
-// ── Process helpers ────────────────────────────────────────────────
+// ── Cross-platform helpers ─────────────────────────────────────────
 
 /**
- * Find PID of process listening on a given TCP port.
- * Returns null if nothing is listening.
+ * 跨平台同步 sleep — 使用 Atomics.wait 实现，不依赖 shell sleep 命令。
+ * @param {number} ms
+ */
+function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+// ── Cross-platform process helpers ──────────────────────────────────
+
+/**
+ * 跨平台查找监听指定 TCP 端口的进程 PID。
+ *
+ * - macOS/Linux: lsof -ti tcp:<port>
+ * - Windows: netstat -ano | findstr LISTENING
+ *
+ * @param {number} port
+ * @returns {number|null}
  */
 export function findPidByPort(port) {
+  if (process.platform === 'win32') {
+    return findPidByPortWin(port);
+  }
+  return findPidByPortUnix(port);
+}
+
+function findPidByPortUnix(port) {
   try {
-    const stdout = execSync(`lsof -ti tcp:${port} 2>/dev/null`, {
+    const stdout = execSync(`lsof -ti tcp:${port}`, {
       encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'ignore'],
       timeout: 3000,
     }).trim();
     return stdout ? parseInt(stdout.split('\n')[0], 10) : null;
@@ -38,15 +65,63 @@ export function findPidByPort(port) {
   }
 }
 
+function findPidByPortWin(port) {
+  try {
+    const stdout = execSync(`netstat -ano | findstr "LISTENING" | findstr ":${port} "`, {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'ignore'],
+      timeout: 5000,
+    }).trim();
+    // netstat output: TCP    0.0.0.0:8080    0.0.0.0:0    LISTENING    12345
+    const lines = stdout.split('\n');
+    for (const line of lines) {
+      const parts = line.trim().split(/\s+/);
+      const pid = parseInt(parts[parts.length - 1], 10);
+      if (Number.isFinite(pid)) return pid;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Get the command line of a process by PID.
+ * 跨平台获取进程命令行。
+ *
+ * - macOS/Linux: ps -p <pid> -o args=
+ * - Windows: wmic process where processid=<pid> get commandline
+ *
+ * @param {number} pid
+ * @returns {string}
  */
 export function getProcessCommand(pid) {
+  if (process.platform === 'win32') {
+    return getProcessCommandWin(pid);
+  }
+  return getProcessCommandUnix(pid);
+}
+
+function getProcessCommandUnix(pid) {
   try {
-    return execSync(`ps -p ${pid} -o args= 2>/dev/null`, {
+    return execSync(`ps -p ${pid} -o args=`, {
       encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'ignore'],
       timeout: 3000,
     }).trim();
+  } catch {
+    return '';
+  }
+}
+
+function getProcessCommandWin(pid) {
+  try {
+    const stdout = execSync(`wmic process where processid=${pid} get commandline`, {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'ignore'],
+      timeout: 5000,
+    }).trim();
+    const lines = stdout.split('\n').filter(Boolean);
+    return lines.length >= 2 ? lines[1].trim() : '';
   } catch {
     return '';
   }
@@ -60,12 +135,17 @@ export function isHeadless(cmd) {
 }
 
 /**
- * Kill a process by PID with escalation (SIGTERM -> SIGKILL).
+ * 跨平台终止进程。
+ *
+ * - macOS/Linux: SIGTERM → wait → SIGKILL (force)
+ * - Windows: process.kill SIGTERM → taskkill /F (force fallback)
+ *
+ * @param {number} pid
  */
 export function killProcess(pid) {
   try {
     process.kill(pid, 'SIGTERM');
-    // Wait briefly for graceful shutdown
+    // Wait briefly for graceful shutdown — polling with setTimeout
     const start = Date.now();
     while (Date.now() - start < 2000) {
       try {
@@ -73,10 +153,23 @@ export function killProcess(pid) {
       } catch {
         return; // process is gone
       }
-      execSync('sleep 0.2', { timeout: 1000 });
+      // Busy-wait with micro-pause to avoid CPU spin
+      const pollStart = Date.now();
+      while (Date.now() - pollStart < 50) {
+        /* yield */
+      }
     }
     // Force kill
-    process.kill(pid, 'SIGKILL');
+    if (process.platform === 'win32') {
+      // Windows: SIGKILL unsupported, use taskkill /F
+      try {
+        execSync(`taskkill /F /PID ${pid}`, { stdio: 'ignore', timeout: 5000 });
+      } catch {
+        // already dead
+      }
+    } else {
+      process.kill(pid, 'SIGKILL');
+    }
   } catch {
     // already dead
   }
@@ -142,7 +235,7 @@ export function ensureMcp(options = {}) {
     }
     // Running in wrong mode -- restart
     stopMcp(port);
-    execSync('sleep 1', { timeout: 2000 });
+    sleepSync(1000);
   }
 
   // Start MCP
@@ -161,7 +254,7 @@ export function ensureMcp(options = {}) {
   const deadline = Date.now() + 10000;
   let startedPid = null;
   while (Date.now() < deadline) {
-    execSync('sleep 0.3', { timeout: 1000 });
+    sleep(300);
     const found = findPidByPort(port);
     if (found) {
       startedPid = found;
@@ -181,8 +274,8 @@ export function ensureMcp(options = {}) {
 
 if (process.argv[1] === import.meta.filename) {
   const args = process.argv.slice(2);
-  const modeFlag = args.find(a => a.startsWith('--mode='));
-  const portFlag = args.find(a => a.startsWith('--port='));
+  const modeFlag = args.find((a) => a.startsWith('--mode='));
+  const portFlag = args.find((a) => a.startsWith('--port='));
   const mode = modeFlag ? modeFlag.split('=')[1] : 'headless';
   const port = portFlag ? parseInt(portFlag.split('=')[1], 10) : DEFAULT_PORT;
 

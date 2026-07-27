@@ -24,7 +24,7 @@ function inferAction(description, index) {
   // Navigation
   if (/导航|打开|goto/i.test(desc)) {
     const urlMatch = desc.match(/`([^`]+)`/);
-    const url = urlMatch ? urlMatch[1] : 'process.env.BASE_URL || \'/\'';
+    const url = urlMatch ? urlMatch[1] : "process.env.BASE_URL || '/'";
     return {
       comment: desc,
       action: 'page.goto',
@@ -48,7 +48,9 @@ function inferAction(description, index) {
     const valueMatch = desc.match(/`([^`]+)`/);
     const value = valueMatch ? valueMatch[1] : '';
     const targetMatch = desc.match(/[""「」](.+?)[""」』]/);
-    const selector = targetMatch ? `[placeholder="${targetMatch[1]}" i]` : `input${index > 0 ? `:nth-child(${index})` : ''}`;
+    const selector = targetMatch
+      ? `[placeholder="${targetMatch[1]}" i]`
+      : `input${index > 0 ? `:nth-child(${index})` : ''}`;
     return {
       comment: desc,
       action: 'page.fill',
@@ -155,7 +157,9 @@ export function compile(parsed) {
   lines.push('');
 
   for (const flow of parsed.flows) {
-    lines.push(`${indent}test('${escapeStr(parsed.featureName)} - ${escapeStr(flow.id + ' - ' + flow.title)}', async ({ page }) => {`);
+    lines.push(
+      `${indent}test('${escapeStr(parsed.featureName)} - ${escapeStr(flow.id + ' - ' + flow.title)}', async ({ page }) => {`,
+    );
 
     // Preconditions as comments
     if (flow.preconditions) {
@@ -166,8 +170,8 @@ export function compile(parsed) {
     }
 
     // AI_REQUIRED marker — skip entire flow if any step needs AI
-    const hasAiRequired = flow.steps.some(s =>
-      s.description.includes('AI_REQUIRED') || s.description.includes('<!-- AI_REQUIRED -->')
+    const hasAiRequired = flow.steps.some(
+      (s) => s.description.includes('AI_REQUIRED') || s.description.includes('<!-- AI_REQUIRED -->'),
     );
     if (hasAiRequired) {
       lines.push(`${indent}${indent}// AI_REQUIRED — cannot execute natively, AI will handle`);
@@ -181,7 +185,7 @@ export function compile(parsed) {
 
       const action = inferAction(desc, step.order);
       if (action.action) {
-        const args = action.args.map(a => typeof a === 'string' ? `'${escapeStr(a)}'` : a).join(', ');
+        const args = action.args.map((a) => (typeof a === 'string' ? `'${escapeStr(a)}'` : a)).join(', ');
         lines.push(`${indent}${indent}await ${action.action}(${args});`);
       } else {
         // Cannot map to Playwright API — keep as TODO comment
@@ -196,11 +200,17 @@ export function compile(parsed) {
         if (va.assertion === 'toBeVisible') {
           lines.push(`${indent}${indent}await expect(page.locator('${escapeStr(va.args[0])}')).toBeVisible();`);
         } else if (va.assertion === 'toHaveText') {
-          lines.push(`${indent}${indent}await expect(page.locator('${escapeStr(va.args[0])}')).toHaveText('${escapeStr(va.args[1])}');`);
+          lines.push(
+            `${indent}${indent}await expect(page.locator('${escapeStr(va.args[0])}')).toHaveText('${escapeStr(va.args[1])}');`,
+          );
         } else if (va.assertion === 'toHaveTitle') {
-          lines.push(`${indent}${indent}await expect(page).toHaveTitle(${typeof va.args[0] === 'string' ? `'${escapeStr(va.args[0])}'` : va.args[0]});`);
+          lines.push(
+            `${indent}${indent}await expect(page).toHaveTitle(${typeof va.args[0] === 'string' ? `'${escapeStr(va.args[0])}'` : va.args[0]});`,
+          );
         } else if (va.assertion === 'toHaveURL') {
-          lines.push(`${indent}${indent}await expect(page).toHaveURL(${typeof va.args[0] === 'string' ? `'${escapeStr(va.args[0])}'` : va.args[0]});`);
+          lines.push(
+            `${indent}${indent}await expect(page).toHaveURL(${typeof va.args[0] === 'string' ? `'${escapeStr(va.args[0])}'` : va.args[0]});`,
+          );
         }
       }
 

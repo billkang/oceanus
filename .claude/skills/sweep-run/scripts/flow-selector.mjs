@@ -41,11 +41,7 @@ async function getCheckbox() {
 // ── TTY detection ───────────────────────────────────────────────────
 
 function isTtyAvailable() {
-  return Boolean(
-    process.stdout.isTTY &&
-    process.stdin.isTTY &&
-    process.stdin.setRawMode
-  );
+  return Boolean(process.stdout.isTTY && process.stdin.isTTY && process.stdin.setRawMode);
 }
 
 // ── YAML 解析（轻量，不依赖 yaml 包） ──────────────────────────
@@ -98,14 +94,10 @@ function resolveFlowFile(modulePath, baseFlowsDir) {
 
   const parts = modulePath.split('/');
   const leafName = parts[parts.length - 1];
-  const parentDir = parts.length > 1
-    ? join(baseFlowsDir, parts.slice(0, -1).join('/'))
-    : baseFlowsDir;
+  const parentDir = parts.length > 1 ? join(baseFlowsDir, parts.slice(0, -1).join('/')) : baseFlowsDir;
   if (existsSync(parentDir)) {
     const files = readdirSync(parentDir);
-    const found = files.find(
-      (f) => f.endsWith('.flow.md') && f.toLowerCase().includes(leafName.toLowerCase())
-    );
+    const found = files.find((f) => f.endsWith('.flow.md') && f.toLowerCase().includes(leafName.toLowerCase()));
     if (found) return join(parentDir, found);
   }
 
@@ -442,10 +434,7 @@ async function main() {
       }
     }
 
-    choices = [
-      { name: '📋 全部执行', value: '__all__' },
-      ...choices,
-    ];
+    choices = [{ name: '📋 全部执行', value: '__all__' }, ...choices];
 
     // ── Decide mode: text vs checkbox ──────────────────────
 

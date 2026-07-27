@@ -44,9 +44,7 @@ export function checkBranch(branch, openspecTasks = []) {
 
   const isTemp = TEMP_PATTERN.test(branch);
   const action = isTemp ? 'suggest-rename' : 'continue';
-  const matchedTask = openspecTasks.find(t =>
-    branch === t.name || branch.includes(t.name)
-  );
+  const matchedTask = openspecTasks.find((t) => branch === t.name || branch.includes(t.name));
 
   return {
     isValid: true,
@@ -68,17 +66,15 @@ function exec(command) {
 }
 
 function findOpenspecTasks() {
-  const root = exec(
-    'git rev-parse --show-toplevel 2>/dev/null || echo ""'
-  );
+  const root = exec('git rev-parse --show-toplevel');
   if (!root) return [];
   const changesDir = join(root, 'openspec', 'changes');
   if (!existsSync(changesDir)) return [];
 
   const entries = readdirSync(changesDir, { withFileTypes: true });
   return entries
-    .filter(e => e.isDirectory() && e.name !== 'archive')
-    .map(e => ({
+    .filter((e) => e.isDirectory() && e.name !== 'archive')
+    .map((e) => ({
       name: e.name,
       hasProposal: existsSync(join(changesDir, e.name, 'proposal.md')),
     }));
@@ -100,9 +96,7 @@ branch-check.mjs — 检查分支合法性
   }
 
   const idx = process.argv.indexOf('--branch');
-  const branch = idx >= 0
-    ? process.argv[idx + 1]
-    : exec('git branch --show-current');
+  const branch = idx >= 0 ? process.argv[idx + 1] : exec('git branch --show-current');
   const tasks = findOpenspecTasks();
   const result = checkBranch(branch, tasks);
   process.stdout.write(JSON.stringify(result, null, 2) + '\n');

@@ -14,6 +14,7 @@ proposal.md 的 Scope 段列出了 21 条要做的功能，但没有一条"不�
 
 ```markdown
 ## 不做什么
+
 - 仅支持 Scope 中列出的控件类型（TextControl、NumberControl、DateTimeControl、
   ChoiceControl、ObjectControl），其余控件均不在本版本支持范围内
 - 不支持批量导入（不支持一次上传多个 Excel 文件）
@@ -37,6 +38,7 @@ spec.md 末尾新增：
 
 ```markdown
 ## Known Limitations
+
 本版本存在以下已知约束：
 
 - **仅支持新增**：导入操作仅创建新的 FormResponse，不支持通过
@@ -61,16 +63,16 @@ spec.md 末尾新增：
 
 ```markdown
 - [x] 7.1 `FormExportServiceTest`：测试 Excel 生成逻辑（表头必填标记、
-  填写说明行、下拉验证、隐藏 Sheet、Sheet 保护）
+      填写说明行、下拉验证、隐藏 Sheet、Sheet 保护）
 ```
 
 ### 加固后
 
 ```markdown
 - [x] 7.1 `FormExportServiceTest`：覆盖 TextControl / NumberControl /
-  DateTimeControl / ChoiceControl（PredefinedOptionsSource + DatasetOptionsSource）
-  / ObjectControl 五种控件导出；验证标题行必填标记 *、填写说明行、_meta Sheet
-  的 revisionId 与 key 顺序、Sheet VERY_HIDDEN + 保护、白名单过滤、空字段报错
+      DateTimeControl / ChoiceControl（PredefinedOptionsSource + DatasetOptionsSource）
+      / ObjectControl 五种控件导出；验证标题行必填标记 *、填写说明行、_meta Sheet
+      的 revisionId 与 key 顺序、Sheet VERY_HIDDEN + 保护、白名单过滤、空字段报错
 ```
 
 关键动作：将"测试 X"的许愿式描述替换为场景覆盖清单。
@@ -81,9 +83,9 @@ spec.md 末尾新增：
 
 加固过程中发现的数字：
 
-| 数字 | 处理方式 | 理由 |
-|------|---------|------|
-| 5MB / 3000行 / 200列 | **不修改** | 业务指标，用户确认 |
-| #3B82F6 / #22C55E 等颜色 | **不修改** | 有引用来源（Figma） |
-| w-225（对话框宽度） | **不修改** | 设计稿尺寸，可追溯 |
-| application.properties vs .yaml | **修正** | 项目实际使用 yaml，文档写错 |
+| 数字                            | 处理方式   | 理由                        |
+| ------------------------------- | ---------- | --------------------------- |
+| 5MB / 3000行 / 200列            | **不修改** | 业务指标，用户确认          |
+| #3B82F6 / #22C55E 等颜色        | **不修改** | 有引用来源（Figma）         |
+| w-225（对话框宽度）             | **不修改** | 设计稿尺寸，可追溯          |
+| application.properties vs .yaml | **修正**   | 项目实际使用 yaml，文档写错 |

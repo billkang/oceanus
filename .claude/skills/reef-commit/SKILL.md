@@ -21,10 +21,10 @@ deepstorm:
 
 ### 正文（根据任务复杂度决定）
 
-| 复杂度 | 正文策略 |
-|--------|---------|
-| 简单（单文件/小修补/配置改动） | 仅标题 |
-| 中等 | 标题 + 一段说明 |
+| 复杂度                                  | 正文策略                               |
+| --------------------------------------- | -------------------------------------- |
+| 简单（单文件/小修补/配置改动）          | 仅标题                                 |
+| 中等                                    | 标题 + 一段说明                        |
 | 复杂（多模块/架构级/前后端/破坏性变更） | 标题 + `本次提交改动如下：` + 要点列表 |
 
 有参考文档加 `参考资料：`，关联 Issue 在尾部隔空行加 `JIRA: {完整 URL}`。文件数仅作参考（50 个重命名仍属简单）。
@@ -48,11 +48,13 @@ node packages/reef/skills/reef-commit/scripts/branch-check.mjs
 ```
 
 输出 JSON：
+
 ```json
-{"isValid":true,"warning":false,"action":"continue"}
+{ "isValid": true, "warning": false, "action": "continue" }
 ```
 
 **判断规则：**
+
 - `isValid: false, action: "create-branch"`（当前在 main/master）→ **直接进入步骤 3**
 - `warning: true, action: "suggest-rename"`（分支名像临时分支）→ 询问用户是否改名
 - `matchedTask` 有值 → 说明已匹配到 OpenSpec 任务
@@ -61,6 +63,7 @@ node packages/reef/skills/reef-commit/scripts/branch-check.mjs
 ### 3. 创建新分支
 
 按以下逻辑确定分支名（优先级从高到低）：
+
 1. **OpenSpec 任务名**：由 `branch-check.mjs` 输出的 `matchedTask` 确定
 2. **用户输入**：询问用户想要的分支名
 3. **AI 推导**：根据变更内容总结生成 kebab-case 分支名
@@ -113,6 +116,7 @@ bash packages/reef/skills/reef-commit/scripts/run-tests.sh --json
 **判断流程：**
 
 1. **查找关联的 OpenSpec change：**
+
    ```bash
    node packages/reef/skills/reef-commit/scripts/check-openspec-status.mjs \
      --branch "$(git branch --show-current)"
@@ -122,6 +126,18 @@ bash packages/reef/skills/reef-commit/scripts/run-tests.sh --json
 3. **检查归档状态：** 无输出（`noMatch: true`）→ 跳过。`hasTasksMd: true` + `tasksAllDone: true` → 已全部完成 → 调用 `/opsx:verify` 和 `/opsx:archive`。
 4. **运行验证：** 确认后通过 Skill 工具自动调用 `/opsx:verify`。有 CRITICAL 问题则中止；仅 WARNING/SUGGESTION 则通过。
 5. **运行归档：** 验证通过后 → 通过 Skill 工具自动调用 `/opsx:archive`。执行失败则提示用户手动处理。
+
+### 6.8 文档同步检查
+
+> 检查本次变更是否需要同步文档。此步骤不会中断 commit 流程。
+
+```bash
+# 执行轻量文档同步检测
+node .claude/skills/reef-docs-sync/scripts/check-docs-sync.mjs
+```
+
+- 有需同步的文档 → 在终端输出报告，并在提交信息底部自动附加：`📖 文档同步提醒：本次变更涉及 N 个文档需要更新，可执行 /docs-sync 查看详情`
+- 无匹配 → 静默通过
 
 ### 7. 收集上下文
 

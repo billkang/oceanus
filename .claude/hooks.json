@@ -31,6 +31,18 @@
         ]
       },
       {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/skills/reef-docs-sync/scripts/check-docs-sync.mjs",
+            "if": "Bash(*git*commit*)",
+            "async": true,
+            "statusMessage": "Checking documentation sync..."
+          }
+        ]
+      },
+      {
         "matcher": "Write|Edit",
         "hooks": [
           {

@@ -71,8 +71,8 @@ case "$filepath" in
 
   *.ts|*.tsx|*.js|*.jsx)
     # TypeScript/JavaScript: eslint
-    if [ "$TS_LINT" != "none" ] && command -v npx &>/dev/null && has_eslint_config; then
-      output=$(cd "$PROJECT_DIR" && npx $TS_LINT "$filepath" 2>/dev/null || true)
+    if [ -n "$TS_LINT" ] && [ "$TS_LINT" != "none" ] && command -v npx &>/dev/null && has_eslint_config; then
+      output=$(cd "$PROJECT_DIR" && npx "$TS_LINT" "$filepath" 2>/dev/null || true)
       if [ -n "$output" ]; then
         echo "[style-verify] ⚠ TypeScript/JavaScript 代码风格问题："
         echo "$output" | head -20
@@ -83,8 +83,8 @@ case "$filepath" in
 
   *.html|*.css|*.scss|*.less)
     # 前端模板/样式文件：eslint（如果项目已配置）
-    if [ "$TS_LINT" != "none" ] && command -v npx &>/dev/null && has_eslint_config; then
-      output=$(cd "$PROJECT_DIR" && npx $TS_LINT "$filepath" 2>/dev/null || true)
+    if [ -n "$TS_LINT" ] && [ "$TS_LINT" != "none" ] && command -v npx &>/dev/null && has_eslint_config; then
+      output=$(cd "$PROJECT_DIR" && npx "$TS_LINT" "$filepath" 2>/dev/null || true)
       if [ -n "$output" ]; then
         echo "[style-verify] ⚠ 前端文件代码风格问题："
         echo "$output" | head -10

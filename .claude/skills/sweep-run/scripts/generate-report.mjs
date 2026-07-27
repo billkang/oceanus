@@ -30,8 +30,7 @@ import { resolve } from 'node:path';
  */
 export function generateReport(data) {
   const total = data.passed + data.failed + data.skipped;
-  const passRate = total > 0
-    ? Math.round((data.passed / total) * 100) : 0;
+  const passRate = total > 0 ? Math.round((data.passed / total) * 100) : 0;
 
   const lines = [];
   lines.push('# 测试执行报告\n');

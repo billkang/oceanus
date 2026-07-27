@@ -116,12 +116,12 @@ scope-check:
 
 ## 环境变量
 
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
-| `ANTHROPIC_API_KEY` | — | Claude API Key（优先使用） |
-| `OPENAI_API_KEY` | — | OpenAI API Key（备选） |
-| `LLM_MODEL` | `claude-sonnet-4-20250514` | 使用的模型 |
-| `MAX_DIFF_CHARS` | 20000 | diff 截断字符数 |
+| 变量                | 默认值                     | 说明                       |
+| ------------------- | -------------------------- | -------------------------- |
+| `ANTHROPIC_API_KEY` | —                          | Claude API Key（优先使用） |
+| `OPENAI_API_KEY`    | —                          | OpenAI API Key（备选）     |
+| `LLM_MODEL`         | `claude-sonnet-4-20250514` | 使用的模型                 |
+| `MAX_DIFF_CHARS`    | 20000                      | diff 截断字符数            |
 
 ## 常见问题
 

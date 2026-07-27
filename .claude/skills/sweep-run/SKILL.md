@@ -28,12 +28,12 @@ deepstorm:
 
 ### 执行模式说明
 
-| 模式 | 参数 | MCP 模式 | 说明 | 加速比 |
-|------|------|---------|------|--------|
+| 模式                 | 参数              | MCP 模式 | 说明                                                                             | 加速比  |
+| -------------------- | ----------------- | -------- | -------------------------------------------------------------------------------- | ------- |
 | **混合执行（默认）** | （无）或 `--fast` | headless | 预编译 `.flow.spec.ts` → 原生 Playwright 执行（`--reporter=line`）；失败 AI 自愈 | ~10-20x |
-| 纯原生（不自愈） | `--native` | 不启动 | 只用原生 Playwright 执行，失败不自愈 | ~20x |
-| 批量（单线程） | `--no-parallel` | headless | 原生执行 + 单线程顺序运行 | ~10x |
-| 浏览器调试 | `--browser` | headed | AI 逐步骤 MCP 调用 + 浏览器窗口可见 | 1x |
+| 纯原生（不自愈）     | `--native`        | 不启动   | 只用原生 Playwright 执行，失败不自愈                                             | ~20x    |
+| 批量（单线程）       | `--no-parallel`   | headless | 原生执行 + 单线程顺序运行                                                        | ~10x    |
+| 浏览器调试           | `--browser`       | headed   | AI 逐步骤 MCP 调用 + 浏览器窗口可见                                              | 1x      |
 
 ---
 
@@ -48,7 +48,7 @@ node scripts/env-manager.mjs --framework
 ```
 
 ```json
-{"framework":"playwright","source":"deepstorm-settings"}
+{ "framework": "playwright", "source": "deepstorm-settings" }
 ```
 
 - **playwright** → 通过 Playwright MCP（`deepstorm-playwright`）执行浏览器操作
@@ -98,9 +98,9 @@ node scripts/env-manager.mjs --project-root
    ```markdown
    📋 可用测试模块：
 
-     1. user-system/register（3 个用例：L01-L03）
-     2. user-system/login（2 个用例：L01-L02）
-     3. tasks/crud（4 个用例：T01-T04）
+   1. user-system/register（3 个用例：L01-L03）
+   2. user-system/login（2 个用例：L01-L02）
+   3. tasks/crud（4 个用例：T01-T04）
 
    请选择：全部执行 / 输入序号（如 1,3） / 输入模块名
    ```
@@ -124,19 +124,20 @@ node scripts/env-manager.mjs --project-root
 
 #### 2.2 直接参数模式
 
-| 参数 | 行为 | 示例 |
-|------|------|------|
-| `--all` | 执行 flows/ 下所有 .flow.md | `/sweep-run --all` |
-| `--path {module}` | 执行指定模块路径下的所有 .flow | `/sweep-run --path user-system/login` |
-| `{file-path}` | 执行指定文件 | `/sweep-run flows/login.flow.md` |
-| `{file-path} --flow {ID}` | 只执行文件中的某个 Flow | `/sweep-run login.flow.md --flow L02` |
-| `--env {env}` | 切换目标环境 | `/sweep-run --all --env staging` |
-| `--browser` | 打开浏览器窗口逐步骤调试 | `/sweep-run --all --browser` |
-| `--no-parallel` | 使用批量但不并行 | `/sweep-run --all --no-parallel` |
+| 参数                      | 行为                           | 示例                                  |
+| ------------------------- | ------------------------------ | ------------------------------------- |
+| `--all`                   | 执行 flows/ 下所有 .flow.md    | `/sweep-run --all`                    |
+| `--path {module}`         | 执行指定模块路径下的所有 .flow | `/sweep-run --path user-system/login` |
+| `{file-path}`             | 执行指定文件                   | `/sweep-run flows/login.flow.md`      |
+| `{file-path} --flow {ID}` | 只执行文件中的某个 Flow        | `/sweep-run login.flow.md --flow L02` |
+| `--env {env}`             | 切换目标环境                   | `/sweep-run --all --env staging`      |
+| `--browser`               | 打开浏览器窗口逐步骤调试       | `/sweep-run --all --browser`          |
+| `--no-parallel`           | 使用批量但不并行               | `/sweep-run --all --no-parallel`      |
 
 #### 2.3 文件不存在处理
 
 如指定的文件或 --path 不存在：
+
 - 提示"指定路径不存在"
 - 读取 topology.yaml 展示可用模块
 - 引导用户重新选择
@@ -165,6 +166,7 @@ Flows数组：
 ```
 
 提取每个 Flow 中的：
+
 - 前置条件（描述性文本，用于理解上下文）
 - 步骤列表（有序操作 + 验证点）
 - 环境要求（用于 --env 默认值）
@@ -184,10 +186,14 @@ node scripts/env-manager.mjs --env staging
 输出示例：
 
 ```json
-{"env":"staging","baseUrl":"https://staging.example.com","availableEnvs":[
-  {"name":"test","key":"BASE_URL_TEST","url":"https://test.example.com"},
-  {"name":"staging","key":"BASE_URL_STAGING","url":"https://staging.example.com"}
-]}
+{
+  "env": "staging",
+  "baseUrl": "https://staging.example.com",
+  "availableEnvs": [
+    { "name": "test", "key": "BASE_URL_TEST", "url": "https://test.example.com" },
+    { "name": "staging", "key": "BASE_URL_STAGING", "url": "https://staging.example.com" }
+  ]
+}
 ```
 
 - `--env staging` → 从 `settings.json` 的 `sweep.environments.staging` 读取
@@ -201,6 +207,7 @@ export BASE_URL=$(node scripts/env-manager.mjs --env test --print 2>/dev/null | 
 ```
 
 或从 JSON 结果提取：
+
 ```bash
 BASE_URL=$(node scripts/env-manager.mjs --env test | node -pe "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).baseUrl")
 ```
@@ -246,8 +253,9 @@ node scripts/mcp-manager.mjs --mode=skip
 ```
 
 输出 JSON：
+
 ```json
-{"action":"started","mode":"headless","pid":12345,"port":54321}
+{ "action": "started", "mode": "headless", "pid": 12345, "port": 54321 }
 ```
 
 `action` 取值：`started`（新启动）/ `already-ok`（已在正确模式）/ `switched`（切换后重启）/ `skipped`（跳过）。
@@ -333,13 +341,13 @@ flowchart LR
 
 **操作类型：**
 
-| 操作 | MCP 调用 | 验证方式 |
-|------|---------|---------|
-| 导航 | navigate/goto | 检查页面标题/URL |
-| 点击 | click | 检查预期元素/状态变化 |
-| 输入 | fill | 检查输入回显或后续页面状态 |
-| 选择 | select | 检查选项是否生效 |
-| 等待 | waitFor | 检查超时或条件满足 |
+| 操作 | MCP 调用      | 验证方式                   |
+| ---- | ------------- | -------------------------- |
+| 导航 | navigate/goto | 检查页面标题/URL           |
+| 点击 | click         | 检查预期元素/状态变化      |
+| 输入 | fill          | 检查输入回显或后续页面状态 |
+| 选择 | select        | 检查选项是否生效           |
+| 等待 | waitFor       | 检查超时或条件满足         |
 
 **执行完成后：** 杀掉 headed 进程，以 `--headless` 重启恢复默认模式。
 
@@ -364,12 +372,12 @@ flowchart LR
 
 **判定与处理：**
 
-| 判定结果 | 操作 | 报告中标注 |
-|----------|------|-----------|
-| **元素选择器失效**（元素存在但 CSS class/data-testid 变化） | 更新定位器；添加 `// auto-repaired: {timestamp} - {old} -> {new}` 注释；**重跑**确认 | 自愈成功 |
-| **数据累积**（多次运行导致同名元素重复，`.first()`/`.last()` 选错目标） | 通过 `page.evaluate()` 调用 API 清理历史残留数据后重跑 | 自愈成功 |
-| **真 Bug**（元素不存在、页面行为不符合预期） | 不修改 spec 文件 | 确认 Bug |
-| **修复无效**（更新后重跑仍然失败） | 放弃修复 | 自愈放弃 |
+| 判定结果                                                                | 操作                                                                                 | 报告中标注 |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ---------- |
+| **元素选择器失效**（元素存在但 CSS class/data-testid 变化）             | 更新定位器；添加 `// auto-repaired: {timestamp} - {old} -> {new}` 注释；**重跑**确认 | 自愈成功   |
+| **数据累积**（多次运行导致同名元素重复，`.first()`/`.last()` 选错目标） | 通过 `page.evaluate()` 调用 API 清理历史残留数据后重跑                               | 自愈成功   |
+| **真 Bug**（元素不存在、页面行为不符合预期）                            | 不修改 spec 文件                                                                     | 确认 Bug   |
+| **修复无效**（更新后重跑仍然失败）                                      | 放弃修复                                                                             | 自愈放弃   |
 
 **循环保护：** 同一 Flow 最多重试 **3 次**，超限则停止并保留最后一次失败报告。
 
@@ -417,16 +425,17 @@ Flow: L01 - 正常登录成功
 
 ## Flow: L01 - 正常登录成功 X
 
-| 步骤 | 操作 | 验证 | 结果 |
-|------|------|------|------|
-| 1/4 | 打开登录页面 | 页面加载完成 | OK |
-| 2/4 | 输入邮箱 | 输入框显示 | OK |
-| 3/4 | 点击登录按钮 | URL 跳转 /dashboard | X |
-| 4/4 | （跳过） | - | > |
+| 步骤 | 操作         | 验证                | 结果 |
+| ---- | ------------ | ------------------- | ---- |
+| 1/4  | 打开登录页面 | 页面加载完成        | OK   |
+| 2/4  | 输入邮箱     | 输入框显示          | OK   |
+| 3/4  | 点击登录按钮 | URL 跳转 /dashboard | X    |
+| 4/4  | （跳过）     | -                   | >    |
 
 ### 失败详情
 
 **步骤 3/4：** 点击登录按钮
+
 - 期望：URL 跳转到 /dashboard
 - 实际：URL 保持在 /login
 - 可能原因：登录失败或页面未正确响应
@@ -435,14 +444,14 @@ Flow: L01 - 正常登录成功
 
 ## 汇总
 
-| 项目 | 值 |
-|------|-----|
-| 总 Flow 数 | 1 |
-| 总步骤数 | 3 |
-| 通过 | 2 |
-| 失败 | 1 |
-| 跳过 | 1 |
-| 通过率 | 66% |
+| 项目       | 值  |
+| ---------- | --- |
+| 总 Flow 数 | 1   |
+| 总步骤数   | 3   |
+| 通过       | 2   |
+| 失败       | 1   |
+| 跳过       | 1   |
+| 通过率     | 66% |
 ```
 
 #### 8.3 报告文件名格式
