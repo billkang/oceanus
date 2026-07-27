@@ -1,7 +1,7 @@
 # 系统架构总览
 
 > Single Source of Truth | 更新: 2026-07-27
-> 相关文档：[数据模型](data-model.md) | [ADR 索引](decisions/) | [API 文档](../3-api/api-reference.md)
+> 相关文档：[数据模型](data-model.md) | [ADR 索引](decisions/)
 
 ---
 

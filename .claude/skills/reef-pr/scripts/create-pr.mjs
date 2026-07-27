@@ -40,13 +40,13 @@ export function buildPrBody(ctx) {
     lines.push(`Changes: ${s.files} 文件, +${s.insertions}/-${s.deletions}`);
     lines.push('');
     lines.push('## 变更清单');
-    s.changedFiles.forEach(f => lines.push(`- \`${f}\``));
+    s.changedFiles.forEach((f) => lines.push(`- \`${f}\``));
   }
 
   if (ctx.commitLog && ctx.commitLog.length > 0) {
     lines.push('');
     lines.push('## Commits');
-    ctx.commitLog.forEach(c => lines.push(`- ${c.hash} ${c.message}`));
+    ctx.commitLog.forEach((c) => lines.push(`- ${c.hash} ${c.message}`));
   }
 
   return lines.join('\n');
@@ -74,27 +74,18 @@ function exec(command) {
 
 function collectContext() {
   const branch = exec('git branch --show-current');
-  const forkPoint = exec(
-    'git merge-base main HEAD 2>/dev/null || echo ""'
-  );
-  const diffStat = exec(
-    `git diff "${forkPoint || 'main'}..HEAD" --stat`
-  );
-  const commitLog = forkPoint
-    ? exec(`git log "${forkPoint}"..HEAD --oneline`)
-    : '';
+  const forkPoint = exec('git merge-base main HEAD');
+  const diffStat = exec(`git diff "${forkPoint || 'main'}..HEAD" --stat`);
+  const commitLog = forkPoint ? exec(`git log "${forkPoint}"..HEAD --oneline`) : '';
   const statusShort = exec('git status --short');
 
   // 查找关联 proposal
   let proposalTitle = '';
-  const root = exec(
-    'git rev-parse --show-toplevel 2>/dev/null || echo ""'
-  );
+  const root = exec('git rev-parse --show-toplevel');
   if (root && branch) {
     const p = join(root, 'openspec', 'changes', branch, 'proposal.md');
     if (existsSync(p)) {
-      const firstLine = readFileSync(p, 'utf8')
-        .split('\n')[0] || '';
+      const firstLine = readFileSync(p, 'utf8').split('\n')[0] || '';
       proposalTitle = firstLine.replace(/^#+\s*/, '').trim();
     }
   }
@@ -104,10 +95,14 @@ function collectContext() {
     hasUncommitted: checkUncommitted(statusShort),
     proposalTitle,
     commitLog: commitLog
-      ? commitLog.split('\n').filter(Boolean).map(l => {
-          const m = l.match(/^(\S+)\s+(.*)/);
-          return m ? { hash: m[1], message: m[2] } : null;
-        }).filter(Boolean)
+      ? commitLog
+          .split('\n')
+          .filter(Boolean)
+          .map((l) => {
+            const m = l.match(/^(\S+)\s+(.*)/);
+            return m ? { hash: m[1], message: m[2] } : null;
+          })
+          .filter(Boolean)
       : [],
     diffStat: diffStat ? parseDiffStat(diffStat) : null,
   };
@@ -116,7 +111,9 @@ function collectContext() {
 function parseDiffStat(output) {
   const lines = output.trim().split('\n').filter(Boolean);
   const changedFiles = [];
-  let files = 0, insertions = 0, deletions = 0;
+  let files = 0,
+    insertions = 0,
+    deletions = 0;
 
   for (const line of lines) {
     const sm = line.match(/(\d+)\s+files?\s+changed/);
@@ -136,7 +133,7 @@ function parseDiffStat(output) {
 }
 
 function checkExistingPR() {
-  const out = exec('gh pr view --json url 2>/dev/null || true');
+  const out = exec('gh pr view --json url');
   return out ? { exists: true, url: out } : { exists: false };
 }
 
@@ -187,7 +184,7 @@ create-pr.mjs — PR 上下文收集与创建
     }
 
     const branch = exec('git branch --show-current');
-    const pushOut = exec(`git push -u origin ${branch} 2>&1`);
+    const pushOut = exec(`git push -u origin ${branch}`);
     if (!pushOut) {
       console.error('git push 失败');
       process.exit(1);
@@ -197,17 +194,22 @@ create-pr.mjs — PR 上下文收集与创建
       title: process.argv[titleArg + 1],
       body: process.argv[bodyArg + 1],
       branch,
-      reviewer: reviewerArg >= 0
-        ? process.argv[reviewerArg + 1] : null,
+      reviewer: reviewerArg >= 0 ? process.argv[reviewerArg + 1] : null,
       label: labelArg >= 0 ? process.argv[labelArg + 1] : null,
       draft: isDraft,
     });
 
     const out = exec(cmd);
-    process.stdout.write(JSON.stringify({
-      created: true,
-      url: out,
-    }, null, 2) + '\n');
+    process.stdout.write(
+      JSON.stringify(
+        {
+          created: true,
+          url: out,
+        },
+        null,
+        2,
+      ) + '\n',
+    );
     process.exit(0);
   }
 

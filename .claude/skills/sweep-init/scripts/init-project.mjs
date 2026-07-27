@@ -30,68 +30,88 @@ function writePackageJson(targetDir, framework) {
     scripts.test = 'playwright test';
   }
 
-  writeFileSync(join(targetDir, 'package.json'), JSON.stringify({
-    name: 'sweep-e2e',
-    version: '1.0.0',
-    private: true,
-    type: 'module',
-    scripts,
-    devDependencies: deps,
-  }, null, 2) + '\n');
+  writeFileSync(
+    join(targetDir, 'package.json'),
+    JSON.stringify(
+      {
+        name: 'sweep-e2e',
+        version: '1.0.0',
+        private: true,
+        type: 'module',
+        scripts,
+        devDependencies: deps,
+      },
+      null,
+      2,
+    ) + '\n',
+  );
 }
 
 function writePlaywrightConfig(targetDir) {
-  writeFileSync(join(targetDir, 'playwright.config.ts'), [
-    "import { defineConfig } from '@playwright/test';",
-    '',
-    'export default defineConfig({',
-    '  use: {',
-    "    baseURL: process.env.BASE_URL || 'http://localhost:3000',",
-    '  },',
-    '  timeout: 30000,',
-    '  retries: 0,',
-    "  reporter: [['line'], ['html', { outputFolder: 'flows/reports' }]],",
-    '  projects: [',
-    "    { name: 'chromium', use: { browserName: 'chromium' } },",
-    '  ],',
-    '});',
-    '',
-  ].join('\n'));
+  writeFileSync(
+    join(targetDir, 'playwright.config.ts'),
+    [
+      "import { defineConfig } from '@playwright/test';",
+      '',
+      'export default defineConfig({',
+      '  use: {',
+      "    baseURL: process.env.BASE_URL || 'http://localhost:3000',",
+      '  },',
+      '  timeout: 30000,',
+      '  retries: 0,',
+      "  reporter: [['line'], ['html', { outputFolder: 'flows/reports' }]],",
+      '  projects: [',
+      "    { name: 'chromium', use: { browserName: 'chromium' } },",
+      '  ],',
+      '});',
+      '',
+    ].join('\n'),
+  );
 }
 
 function writeTsconfig(targetDir) {
-  writeFileSync(join(targetDir, 'tsconfig.json'), JSON.stringify({
-    compilerOptions: {
-      target: 'ES2022',
-      module: 'ESNext',
-      moduleResolution: 'bundler',
-      strict: true,
-      esModuleInterop: true,
-    },
-  }, null, 2) + '\n');
+  writeFileSync(
+    join(targetDir, 'tsconfig.json'),
+    JSON.stringify(
+      {
+        compilerOptions: {
+          target: 'ES2022',
+          module: 'ESNext',
+          moduleResolution: 'bundler',
+          strict: true,
+          esModuleInterop: true,
+        },
+      },
+      null,
+      2,
+    ) + '\n',
+  );
 }
 
 function writeTopologyYaml(targetDir) {
-  writeFileSync(join(targetDir, 'flows', 'topology.yaml'), [
-    '# flows/topology.yaml',
-    'name: E2E 测试拓扑',
-    'version: 1',
-    'modules:',
-    '  - name: example',
-    '    description: 示例模块',
-    '    children:',
-    '      - name: feature1',
-    '        description: 功能 1',
-    '        features: []',
-    '',
-  ].join('\n'));
+  writeFileSync(
+    join(targetDir, 'flows', 'topology.yaml'),
+    [
+      '# flows/topology.yaml',
+      'name: E2E 测试拓扑',
+      'version: 1',
+      'modules:',
+      '  - name: example',
+      '    description: 示例模块',
+      '    children:',
+      '      - name: feature1',
+      '        description: 功能 1',
+      '        features: []',
+      '',
+    ].join('\n'),
+  );
 }
 
 // ── Main ──────────────────────────────────────────────────────────
 
 export function initProject(opts = {}) {
   const {
-    framework = null,   // 'playwright' | null
+    framework = null, // 'playwright' | null
     dir = '.',
   } = opts;
 
@@ -128,10 +148,7 @@ export function initProject(opts = {}) {
     // npm install 失败不阻塞
   }
 
-  const created = [
-    'flows/', 'flows/reports/', 'scripts/',
-    'package.json', 'tsconfig.json',
-  ];
+  const created = ['flows/', 'flows/reports/', 'scripts/', 'package.json', 'tsconfig.json'];
   if (framework === 'playwright') created.push('playwright.config.ts');
   if (!existsSync(join(flowsDir, 'topology.yaml'))) {
     created.push('flows/topology.yaml');

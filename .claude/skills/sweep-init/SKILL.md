@@ -37,6 +37,7 @@ cat .deepstorm/settings.json 2>/dev/null | grep -o '"e2eFramework"[^,]*' | head 
 如果配置不存在或为空，使用默认值 `playwright` 并输出提示。
 
 当前支持的框架：
+
 - **playwright** — Microsoft Playwright（默认）
 
 ---
@@ -57,10 +58,12 @@ cat .deepstorm/settings.json 2>/dev/null | grep -o '"e2eFramework"[^,]*' | head 
 ```
 
 **如果选择 a（独立项目）：**
+
 - 设置 TARGET_DIR 为当前目录（`.`）
 - 继续到步骤 1
 
 **如果选择 b（混放项目）：**
+
 - 进一步询问子目录选择：
 
 ```
@@ -114,6 +117,7 @@ node packages/sweep/skills/sweep-init/scripts/init-project.mjs \
 ```
 
 脚本会自动：
+
 - 创建 `flows/`、`flows/reports/`、`scripts/` 目录
 - 生成 `package.json`（含框架对应依赖）、`tsconfig.json`、`playwright.config.ts`（仅 playwright）
 - 不覆盖已有的 `topology.yaml`

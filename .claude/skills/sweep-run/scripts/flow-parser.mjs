@@ -62,7 +62,10 @@ function parseScenarios(content) {
   let inBody = false;
   for (const line of lines) {
     // Skip header and separator
-    if (/^\|[-]+\|/.test(line) && line.includes('---')) { inBody = true; continue; }
+    if (/^\|[-]+\|/.test(line) && line.includes('---')) {
+      inBody = true;
+      continue;
+    }
     if (!inBody) continue;
 
     const m = line.match(SCENARIO_ROW_RE);
@@ -172,9 +175,7 @@ function parseFlows(content) {
 
     // Get content between this flow heading and the next, or end of file
     const startIdx = heading.index + heading[0].length;
-    const endIdx = i + 1 < flowHeadings.length
-      ? flowHeadings[i + 1].index
-      : content.length;
+    const endIdx = i + 1 < flowHeadings.length ? flowHeadings[i + 1].index : content.length;
     const flowContent = content.slice(startIdx, endIdx);
 
     const preconditionsMatch = flowContent.match(PRECONDITIONS_RE);
@@ -186,8 +187,8 @@ function parseFlows(content) {
     if (preconditionsMatch) {
       const precondLines = preconditionsMatch[1]
         .split('\n')
-        .map(l => l.replace(/^-\s*/, '').trim())
-        .filter(l => l.length > 0);
+        .map((l) => l.replace(/^-\s*/, '').trim())
+        .filter((l) => l.length > 0);
       flow.preconditions = precondLines.join('\n');
     }
 

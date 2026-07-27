@@ -43,15 +43,22 @@ node packages/reef/skills/reef-pr/scripts/create-pr.mjs --collect
 
 ```markdown
 ## 概要
+
 {2-4 行概括变更动机，优先从 proposal.md 提取}
+
 ## 关联
+
 JIRA: {commit body / proposal.md / jira-start 元数据}
 OpenSpec: openspec/changes/{branch-name}/
+
 ## 变更清单
+
 {git diff --stat 输出}
+
 ## 测试计划
-- [ ] {前端路径含 src/main/web/ 则加}
-- [ ] {后端路径含 src/main/java/ 则加}
+
+- [ ] {有前端变更则加}
+- [ ] {有后端变更则加}
 - [ ] {手动验证步骤，如有}
 ```
 

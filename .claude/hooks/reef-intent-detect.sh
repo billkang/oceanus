@@ -1,6 +1,6 @@
 #!/bin/bash
 # reef-intent-detect.sh
-# UserPromptSubmit hook: 检测用户输入是否为开发需求，自动唤起 reef-start skill
+# UserPromptSubmit hook: 检测用户输入是否为开发需求，自动唤起 reef-plan skill
 #
 # 部署路径：.claude/hooks/reef-intent-detect.sh
 # 注册方式：通过 hooks.json 的 UserPromptSubmit 条目
@@ -8,7 +8,7 @@
 # 工作原理：
 #   1. 读取用户输入（环境变量 CLAUDE_INPUT）
 #   2. 匹配开发意图关键词（中文 + 英文）
-#   3. 匹配成功 → 输出 <system-reminder> 指令，指示 AI 调用 reef-start skill
+#   3. 匹配成功 → 输出 <system-reminder> 指令，指示 AI 调用 reef-plan skill
 #   4. 未匹配 → 静默退出，AI 正常处理
 
 # 严格模式
@@ -92,7 +92,7 @@ EXCLUDE_PATTERNS=(
 
   # 系统命令 / slash 命令（避免重复触发）
   "^/" "^opsx:" "^bmad" "^reef-"
-  "^deepflow-" "^gstack" "^review" "^qa"
+  "^deepstorm-" "^gstack" "^review" "^qa"
   "^ship" "^canary" "^retro" "^learn"
 )
 
@@ -112,13 +112,13 @@ done
 # 第二步：匹配开发意图关键词（含 Issue 引用）
 for pattern in "${ZH_DEV_PATTERNS[@]}" "${EN_DEV_PATTERNS[@]}" "${ISSUE_PATTERNS[@]}"; do
   if echo "$MESSAGE" | grep -qiE "$pattern"; then
-    # 匹配成功 → 注入指令让 AI 调用 reef-start
+    # 匹配成功 → 注入指令让 AI 调用 reef-plan
     cat <<'HOOKEOF'
 <system-reminder>
 The user's message indicates a development task (feature request / bug fix / refactoring).
-IMPORTANT: Before responding, you MUST invoke the reef-start skill using the Skill tool.
+IMPORTANT: Before responding, you MUST invoke the reef-plan skill using the Skill tool.
 Pass the user's original message as context to the skill.
-Only skip if reef-start is already active or you are already in a development flow.
+Only skip if reef-plan is already active or you are already in a development flow.
 </system-reminder>
 HOOKEOF
     exit 0

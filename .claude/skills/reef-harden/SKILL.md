@@ -19,6 +19,7 @@ node packages/reef/skills/reef-harden/scripts/find-change-dir.mjs
 输出 JSON。`noMatch: true` 时需让用户选择；有 `suggestion` 时使用推荐 change。
 
 如需并列出 SDD 文档路径：
+
 ```bash
 node packages/reef/skills/reef-harden/scripts/find-change-dir.mjs --files
 ```
@@ -60,6 +61,7 @@ openspec/changes/<change>/
 #### 第一道筛：特定数字
 
 搜索文档中所有具体数字（5MB、3000、80%、100ms 等），逐一判断：
+
 - 有引用来源（benchmark、SLA、Figma 等）→ 通过
 - 无引用来源 → 标注 TBD 或在旁边加上 Rationale 说明理由
 - 禁止让"看起来合理但无根据"的数字留在文档里
@@ -67,10 +69,12 @@ openspec/changes/<change>/
 #### 第二道筛："不做什么"
 
 检查是否存在 `## 不做什么` / `## Out of Scope` 段：
+
 - 若不存在 → 必须新增
 - 若存在但内容敷衍（< 5 条）→ 用反向提问扩充："这个功能在第一版里应该不做什么？"
 
 至少应覆盖：
+
 - 不支持的功能/控件/场景（明确列出）
 - 第一版 scale 边界（并发、文件大小、批量操作等）
 - 是 permanent out 还是 v2 做（标注）
@@ -78,6 +82,7 @@ openspec/changes/<change>/
 #### 第三道筛：验证方法
 
 检查所有验证要求，确保每一条可执行：
+
 - "定期 review" → 不合格，追问为"谁、频率、用什么工具"
 - "写测试" → 不合格，细化为"FormExportServiceTest：覆盖 X/Y/Z 场景"
 - 每条验证应对应一个 CI 命令或具体测试步骤
@@ -110,6 +115,7 @@ openspec/changes/<change>/
 ### Step 3: 沉淀 Known Limitations
 
 在 proposal.md 末尾添加 `## Known Limitations` 段，内容来源：
+
 1. 第二步"不做什么"中标注的边界
 2. 第四步反向 grill 中不可忽视的风险点
 3. 已知但有意推迟的 trade-off

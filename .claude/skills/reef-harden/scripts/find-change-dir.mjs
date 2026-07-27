@@ -31,9 +31,7 @@ function isArchivePath(changePath) {
  * @returns {object|null}
  */
 export function findChangeByName(changes, name) {
-  return changes.find(c =>
-    c.name === name && !isArchivePath(c.path)
-  ) || null;
+  return changes.find((c) => c.name === name && !isArchivePath(c.path)) || null;
 }
 
 /**
@@ -42,7 +40,7 @@ export function findChangeByName(changes, name) {
  * @returns {object|null}
  */
 export function findMostRecent(changes) {
-  const active = changes.filter(c => !c.archived);
+  const active = changes.filter((c) => !c.archived);
   if (active.length === 0) return null;
   return active.sort((a, b) => b.mtimeMs - a.mtimeMs)[0];
 }
@@ -115,9 +113,10 @@ find-change-dir.mjs — 发现 OpenSpec change 目录
     process.exit(0);
   }
 
-  const root = process.argv.indexOf('--dir') >= 0
-    ? process.argv[process.argv.indexOf('--dir') + 1]
-    : process.env.INIT_CWD || process.cwd();
+  const root =
+    process.argv.indexOf('--dir') >= 0
+      ? process.argv[process.argv.indexOf('--dir') + 1]
+      : process.env.INIT_CWD || process.cwd();
   const changesDir = join(root, CHANGES_GLOB);
   const allChanges = listChanges(changesDir);
 
@@ -137,9 +136,7 @@ find-change-dir.mjs — 发现 OpenSpec change 目录
   } else {
     const branch = execGitBranch();
     result = branch
-      ? (findChangeByName(allChanges, branch) ||
-         { noMatch: true, branch,
-           suggestion: findMostRecent(allChanges) })
+      ? findChangeByName(allChanges, branch) || { noMatch: true, branch, suggestion: findMostRecent(allChanges) }
       : { noMatch: true, allChanges };
   }
 
@@ -148,9 +145,12 @@ find-change-dir.mjs — 发现 OpenSpec change 目录
 
 function execGitBranch() {
   try {
-    return execSync('git branch --show-current', {
-      encoding: 'utf8', timeout: 5000,
-    }).trim() || null;
+    return (
+      execSync('git branch --show-current', {
+        encoding: 'utf8',
+        timeout: 5000,
+      }).trim() || null
+    );
   } catch {
     return null;
   }

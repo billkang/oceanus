@@ -88,14 +88,10 @@ export function resolveFlowFile(modulePath, flowsDir = BASE_FLOWS_DIR) {
 
   const parts = modulePath.split('/');
   const leafName = parts[parts.length - 1];
-  const parentDir = parts.length > 1
-    ? join(flowsDir, parts.slice(0, -1).join('/'))
-    : flowsDir;
+  const parentDir = parts.length > 1 ? join(flowsDir, parts.slice(0, -1).join('/')) : flowsDir;
   if (existsSync(parentDir)) {
     const files = readdirSync(parentDir);
-    const found = files.find(
-      (f) => f.endsWith('.flow.md') && f.toLowerCase().includes(leafName.toLowerCase())
-    );
+    const found = files.find((f) => f.endsWith('.flow.md') && f.toLowerCase().includes(leafName.toLowerCase()));
     if (found) return join(parentDir, found);
   }
 
@@ -187,7 +183,9 @@ export function normalizeSelection(answer) {
         if (!fileMap.has(file)) fileMap.set(file, []);
         const flows = fileMap.get(file);
         if (!flows.includes(flowId)) flows.push(flowId);
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
   }
 
@@ -278,10 +276,7 @@ async function main() {
       }
     }
 
-    choices = [
-      { name: '📋 全部执行', value: '__all__' },
-      ...choices,
-    ];
+    choices = [{ name: '📋 全部执行', value: '__all__' }, ...choices];
 
     const { default: checkbox } = await import('@inquirer/checkbox');
     const answer = await checkbox({
