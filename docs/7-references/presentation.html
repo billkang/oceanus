@@ -1,0 +1,1478 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Oceanus — AI 研发中台</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Noto+Sans+SC:wght@300;400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      :root {
+        --surface: #ffffff;
+        --bg: #f8f7fc;
+        --bg-alt: #f3f1fa;
+        --accent-600: #4f46e5;
+        --accent-500: #6366f1;
+        --accent-400: #818cf8;
+        --accent-200: #c7d2fe;
+        --accent-100: #e0e7ff;
+        --accent-50: #eef2ff;
+        --teal-600: #0d9488;
+        --teal-500: #14b8a6;
+        --teal-50: #f0fdfa;
+        --gold-600: #b45309;
+        --gold-500: #d97706;
+        --gold-100: #fef3c7;
+        --green-600: #059669;
+        --green-100: #d1fae5;
+        --red-600: #dc2626;
+        --red-100: #fee2e2;
+        --text: #1c1b2e;
+        --text-80: rgba(28, 27, 46, 0.8);
+        --text-60: rgba(28, 27, 46, 0.55);
+        --text-40: rgba(28, 27, 46, 0.3);
+        --text-20: rgba(28, 27, 46, 0.12);
+        --text-10: rgba(28, 27, 46, 0.06);
+        --text-05: rgba(28, 27, 46, 0.03);
+        --radius-outer: 1.5rem;
+        --radius-inner: 1rem;
+        --bezier: cubic-bezier(0.32, 0.72, 0, 1);
+      }
+      html,
+      body {
+        height: 100%;
+        overflow: hidden;
+      }
+      body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-family: 'Plus Jakarta Sans', 'Noto Sans SC', sans-serif;
+        background: #e8e7ee;
+        color: var(--text);
+        -webkit-font-smoothing: antialiased;
+      }
+      ::selection {
+        background: var(--accent-200);
+        color: var(--text);
+      }
+
+      /* === SLIDES CONTAINER (16:9) === */
+      .slides {
+        position: relative;
+        width: min(90vw, calc(83vh * 16 / 9));
+        margin-top: -2vh;
+        aspect-ratio: 16/9;
+        border-radius: 1.25rem;
+        overflow: hidden;
+        border: 1px solid var(--text-10);
+        box-shadow: 0 8px 40px rgba(28, 27, 46, 0.08);
+      }
+      .slide {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        padding: 1.4rem 1.6rem;
+        background: var(--surface);
+        opacity: 0;
+        visibility: hidden;
+        transition:
+          opacity 0.5s var(--bezier),
+          visibility 0s 0.5s;
+        overflow-y: auto;
+      }
+      .slide.active {
+        opacity: 1;
+        visibility: visible;
+        transition:
+          opacity 0.5s var(--bezier),
+          visibility 0s 0s;
+        z-index: 2;
+      }
+      .slide.exit {
+        opacity: 0;
+        visibility: hidden;
+        transition:
+          opacity 0.35s var(--bezier),
+          visibility 0s 0.35s;
+        z-index: 1;
+      }
+      .slide-inner {
+        max-width: 1120px;
+        width: 100%;
+        margin: 0.6rem auto;
+      }
+
+      /* === BOTTOM BAR === */
+      .bar {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 100;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 6px 16px;
+        height: 40px;
+        background: rgba(255, 255, 255, 0.93);
+        backdrop-filter: blur(16px);
+        border: 1px solid var(--text-20);
+        border-radius: 100px;
+        box-shadow: 0 4px 24px rgba(28, 27, 46, 0.07);
+      }
+      .bar .page {
+        font-size: 11px;
+        color: var(--text-60);
+        min-width: 48px;
+        text-align: center;
+      }
+      .dots {
+        display: flex;
+        gap: 5px;
+      }
+      .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--text-20);
+        cursor: pointer;
+        transition: 0.25s;
+      }
+      .dot:hover {
+        background: var(--accent-400);
+      }
+      .dot.active {
+        width: 20px;
+        height: 5px;
+        border-radius: 5px;
+        background: var(--accent-500);
+        cursor: default;
+      }
+      .bar button {
+        padding: 3px 12px;
+        border-radius: 40px;
+        border: 1px solid var(--text-20);
+        background: var(--surface);
+        color: var(--text);
+        cursor: pointer;
+        font-size: 11px;
+        font-weight: 500;
+        transition: 0.2s;
+      }
+      .bar button:hover {
+        border-color: var(--accent-400);
+        background: var(--accent-50);
+      }
+      .bar button:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+      }
+
+      /* === TYPOGRAPHY === */
+      h1 {
+        font-size: clamp(2.5rem, 5.5vw, 4.2rem);
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        line-height: 1.05;
+        margin-bottom: 8px;
+        color: var(--text);
+      }
+      h2 {
+        font-size: clamp(1.65rem, 3.2vw, 2.4rem);
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        margin-bottom: 12px;
+        color: var(--text);
+      }
+      h2 .sub {
+        display: block;
+        font-size: clamp(0.82rem, 1.3vw, 0.96rem);
+        font-weight: 400;
+        color: var(--text-60);
+        margin-top: 3px;
+      }
+      h3 {
+        font-size: clamp(1rem, 1.7vw, 1.25rem);
+        font-weight: 600;
+        margin-bottom: 8px;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      h3 .hm {
+        padding: 1px 8px;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      h3 .hm.g {
+        background: var(--green-100);
+        color: var(--green-600);
+      }
+      h3 .hm.a {
+        background: var(--gold-100);
+        color: var(--gold-600);
+      }
+      p {
+        color: var(--text-80);
+        line-height: 1.6;
+        font-size: clamp(0.88rem, 1.35vw, 1rem);
+        margin-bottom: 6px;
+      }
+      code {
+        font-size: 0.75rem;
+        background: var(--text-05);
+        padding: 1px 5px;
+        border-radius: 3px;
+        font-family: 'JetBrains Mono', monospace;
+      }
+
+      /* === EYEBROW === */
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 12px;
+        border-radius: 999px;
+        background: var(--accent-50);
+        border: 1px solid var(--accent-100);
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        color: var(--accent-600);
+        margin-bottom: 10px;
+      }
+
+      /* === CARDS GRID === */
+      .cards {
+        display: grid;
+        gap: 10px;
+        margin: 8px 0;
+      }
+      .cards-3 {
+        grid-template-columns: repeat(3, 1fr);
+      }
+      .cards-2 {
+        grid-template-columns: 1fr 1fr;
+      }
+      .card {
+        padding: 1rem 1.15rem;
+        border-radius: 1rem;
+        background: var(--surface);
+        border: 1px solid var(--text-10);
+        transition: all 0.4s var(--bezier);
+      }
+      .card:hover {
+        transform: translateY(-2px);
+        border-color: var(--accent-200);
+        box-shadow: 0 6px 24px rgba(79, 70, 229, 0.06);
+      }
+      .card h4 {
+        font-size: clamp(0.9rem, 1.35vw, 1.02rem);
+        font-weight: 600;
+        margin-bottom: 5px;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .card h4 .ci {
+        font-size: clamp(1.15rem, 1.5vw, 1.3rem);
+        display: inline;
+        line-height: 1;
+      }
+      .card p {
+        font-size: clamp(0.8rem, 1.1vw, 0.88rem);
+        margin: 0;
+        color: var(--text-60);
+        line-height: 1.55;
+      }
+
+      /* === TAG === */
+      .tag {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 100px;
+        font-size: 0.7rem;
+        font-weight: 500;
+      }
+      .tag-g {
+        background: var(--green-100);
+        color: var(--green-600);
+      }
+      .tag-a {
+        background: var(--gold-100);
+        color: var(--gold-600);
+      }
+      .tag-b {
+        background: var(--accent-100);
+        color: var(--accent-600);
+      }
+      .tag-r {
+        background: var(--red-100);
+        color: var(--red-600);
+      }
+      .tag-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin-top: 8px;
+      }
+
+      /* === COMPARE (two-column) === */
+      .compare {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin: 8px 0;
+      }
+      .compare .col {
+        padding: 0.9rem 1rem;
+        border-radius: 1rem;
+        border: 1px solid var(--text-10);
+        background: var(--surface);
+      }
+      .compare .col.pick {
+        border-color: var(--accent-400);
+        border-width: 2px;
+        background: var(--accent-50);
+      }
+      .compare .col h4 {
+        font-size: clamp(0.88rem, 1.2vw, 0.98rem);
+        font-weight: 600;
+        margin-bottom: 6px;
+        color: var(--text);
+      }
+      .compare .col ul {
+        list-style: none;
+      }
+      .compare .col li {
+        padding: 3px 0;
+        font-size: clamp(0.78rem, 1.05vw, 0.88rem);
+        color: var(--text-80);
+        display: flex;
+        gap: 5px;
+      }
+      .compare .col .ck {
+        color: var(--green-600);
+        flex-shrink: 0;
+      }
+      .compare .col .cr {
+        color: var(--red-600);
+        flex-shrink: 0;
+      }
+
+      /* === HIGHLIGHT BLOCK === */
+      .hl {
+        padding: 10px 14px;
+        border-radius: 0 0.75rem 0.75rem 0;
+        border-left: 3px solid var(--accent-500);
+        background: var(--accent-50);
+        margin: 10px 0;
+      }
+      .hl p {
+        margin: 0;
+        font-size: clamp(0.84rem, 1.2vw, 0.94rem);
+        color: var(--text);
+      }
+      .hl strong {
+        color: var(--accent-600);
+      }
+      .hl.amb {
+        border-left-color: var(--gold-500);
+        background: var(--gold-100);
+      }
+      .hl.pur {
+        border-left-color: #7c3aed;
+        background: #f5f3ff;
+      }
+
+      /* === SECTION DIVIDER === */
+      .sd {
+        border: none;
+        border-top: 1px solid var(--text-10);
+        margin: 12px 0;
+      }
+
+      /* === FLOW (numbered steps) === */
+      .flow {
+        counter-reset: s;
+        list-style: none;
+        margin: 8px 0;
+      }
+      .flow li {
+        counter-increment: s;
+        padding: 5px 0 5px 34px;
+        position: relative;
+        border-left: 2px solid var(--text-20);
+        margin-left: 9px;
+        font-size: clamp(0.82rem, 1.15vw, 0.92rem);
+        color: var(--text);
+      }
+      .flow li::before {
+        content: counter(s);
+        position: absolute;
+        left: -11px;
+        top: 4px;
+        width: 20px;
+        height: 20px;
+        background: var(--surface);
+        border: 2px solid var(--accent-500);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.65rem;
+        font-weight: 700;
+        color: var(--accent-600);
+      }
+      .flow li:last-child {
+        border-left-color: transparent;
+      }
+      .flow .sub {
+        color: var(--text-60);
+        font-size: clamp(0.7rem, 0.95vw, 0.78rem);
+        margin-top: 1px;
+      }
+
+      /* === ARCHITECTURE (layered) === */
+      .arch {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        margin: 6px 0;
+      }
+      .arch .row {
+        display: flex;
+        align-items: stretch;
+        gap: 6px;
+        padding: 6px 10px;
+        border-radius: 0.75rem;
+        background: var(--bg);
+        border: 1px solid var(--text-10);
+      }
+      .arch .row .lb {
+        font-size: clamp(0.72rem, 0.96vw, 0.8rem);
+        font-weight: 700;
+        min-width: 100px;
+        display: flex;
+        align-items: center;
+        white-space: nowrap;
+      }
+      .arch .row .r {
+        display: flex;
+        gap: 3px;
+        flex-wrap: wrap;
+        flex: 1;
+      }
+      .arch .row .m {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 4px 8px;
+        border-radius: 5px;
+        background: var(--surface);
+        border: 1px solid var(--text-10);
+        font-size: clamp(0.66rem, 0.88vw, 0.74rem);
+        font-weight: 600;
+        color: var(--text);
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+      .arch .row .m .ms {
+        font-size: 0.58rem;
+        color: var(--text-60);
+        font-weight: 400;
+        display: block;
+        margin-top: 1px;
+      }
+      .arch .row.l0 {
+        border-left: 3px solid var(--accent-500);
+      }
+      .arch .row.l0 .lb {
+        color: var(--accent-600);
+      }
+      .arch .row.l1 {
+        border-left: 3px solid var(--teal-600);
+      }
+      .arch .row.l1 .lb {
+        color: var(--teal-600);
+      }
+      .arch .row.l2 {
+        border-left: 3px solid #7c3aed;
+      }
+      .arch .row.l2 .lb {
+        color: #7c3aed;
+      }
+      .arch .row.l3 {
+        border-left: 3px solid var(--gold-600);
+      }
+      .arch .row.l3 .lb {
+        color: var(--gold-600);
+      }
+      .arch .row.l4 {
+        border-left: 3px solid var(--green-600);
+      }
+      .arch .row.l4 .lb {
+        color: var(--green-600);
+      }
+      .arch-cv {
+        text-align: center;
+        font-size: 0.4rem;
+        color: var(--text-30);
+        letter-spacing: 0.1em;
+        font-weight: 600;
+        padding: 0;
+        line-height: 1;
+      }
+
+      /* === DIAGRAM BOX === */
+      .db {
+        background: var(--bg);
+        border: 1px solid var(--text-10);
+        border-radius: 0.75rem;
+        padding: 10px 14px;
+        margin: 8px 0;
+      }
+      .db .r {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin: 3px 0;
+      }
+      .db .bx {
+        display: inline-block;
+        padding: 5px 10px;
+        border-radius: 5px;
+        font-size: clamp(0.74rem, 1vw, 0.84rem);
+        font-weight: 500;
+      }
+      .db .bx.a {
+        background: var(--accent-50);
+        border: 1px solid var(--accent-200);
+        color: var(--accent-600);
+      }
+      .db .bx.g {
+        background: var(--green-100);
+        border: 1px solid var(--green-100);
+        color: var(--green-600);
+      }
+      .db .bx.p {
+        background: #f5f3ff;
+        border: 1px solid #e9d5ff;
+        color: #7c3aed;
+      }
+      .db .bx.t {
+        background: var(--teal-50);
+        border: 1px solid #ccfbf1;
+        color: var(--teal-600);
+      }
+      .db .bx.o {
+        background: var(--gold-100);
+        border: 1px solid var(--gold-100);
+        color: var(--gold-600);
+      }
+      .db .ar {
+        color: var(--text-40);
+        font-size: clamp(0.76rem, 1.05vw, 0.84rem);
+        margin: 0 2px;
+      }
+      .db .bx .bs {
+        display: block;
+        font-size: 0.6rem;
+        color: var(--text-60);
+        font-weight: 400;
+      }
+
+      /* === PRINCIPLES GRID === */
+      .pg {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin: 8px 0;
+      }
+      .pc {
+        padding: 10px 12px;
+        border-radius: 0.75rem;
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        background: var(--bg);
+        border: 1px solid var(--text-10);
+      }
+      .pc .n {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: var(--accent-500);
+        color: #fff;
+        font-size: 0.6rem;
+        font-weight: 700;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .pc .b h4 {
+        font-size: clamp(0.84rem, 1.15vw, 0.94rem);
+        font-weight: 600;
+        margin: 0 0 3px;
+        color: var(--text);
+      }
+      .pc .b p {
+        font-size: clamp(0.74rem, 0.98vw, 0.8rem);
+        margin: 0;
+        color: var(--text-60);
+        line-height: 1.5;
+      }
+
+      /* === DTABLE === */
+      .dt {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: clamp(0.76rem, 1.05vw, 0.86rem);
+        margin: 8px 0;
+      }
+      .dt td {
+        padding: 5px 8px;
+        text-align: left;
+        border-bottom: 1px solid var(--text-10);
+        color: var(--text-80);
+      }
+      .dt tr:last-child td {
+        border-bottom: none;
+      }
+      .dt td:first-child {
+        font-weight: 500;
+        color: var(--text);
+      }
+      .dt td:last-child {
+        text-align: right;
+      }
+
+      /* === TABLE two-col === */
+      .tc {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+        margin: 6px 0;
+      }
+      .tc h3 {
+        margin-bottom: 6px;
+      }
+
+      /* === COVER === */
+      .slide-cover {
+        text-align: center;
+        justify-content: center;
+        background:
+          radial-gradient(ellipse 80% 50% at 50% -8%, var(--accent-100) 0%, transparent 60%),
+          radial-gradient(ellipse 50% 40% at 20% 80%, var(--accent-50) 0%, transparent 50%),
+          radial-gradient(ellipse 50% 40% at 80% 80%, var(--teal-50) 0%, transparent 50%), var(--surface);
+      }
+      .slide-cover .bdge {
+        display: inline-block;
+        padding: 5px 16px;
+        border-radius: 999px;
+        background: var(--accent-50);
+        border: 1px solid var(--accent-100);
+        color: var(--accent-600);
+        font-size: clamp(0.65rem, 0.9vw, 0.76rem);
+        font-weight: 500;
+        margin-bottom: 14px;
+      }
+
+      /* === MISSION BANNER === */
+      .mb {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        margin: 0 auto 10px;
+        border-radius: 0.75rem;
+        background: linear-gradient(135deg, var(--accent-50), var(--teal-50), var(--gold-100));
+        border: 1px solid var(--text-10);
+        text-align: left;
+        max-width: 680px;
+      }
+      .mb .tx {
+        font-size: clamp(0.78rem, 1.1vw, 0.9rem);
+        color: var(--text-80);
+        line-height: 1.6;
+        font-weight: 500;
+      }
+      .mb .tx .hl {
+        color: var(--accent-600);
+        font-weight: 700;
+      }
+
+      @media (max-width: 900px) {
+        .slide {
+          padding: 1.2rem 1.2rem;
+        }
+        .cards-3 {
+          grid-template-columns: 1fr;
+        }
+        .cards-2 {
+          grid-template-columns: 1fr;
+        }
+        .compare {
+          grid-template-columns: 1fr;
+        }
+        .tc {
+          grid-template-columns: 1fr;
+        }
+        .pg {
+          grid-template-columns: 1fr;
+        }
+        .arch .row {
+          flex-direction: column;
+          gap: 6px;
+        }
+        .arch .row .lb {
+          min-width: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="bar" id="bar">
+      <button id="pBtn" disabled>←</button>
+      <span class="dots" id="dots"></span>
+      <button id="nBtn">→</button>
+    </nav>
+
+    <div class="slides" id="slides">
+      <!-- ============================================================ -->
+      <!-- SLIDE 1: Cover -->
+      <div class="slide slide-cover active" data-index="0">
+        <div class="slide-inner">
+          <h1
+            style="
+              font-size: clamp(2.8rem, 6vw, 4.6rem);
+              font-weight: 800;
+              letter-spacing: -0.04em;
+              line-height: 1;
+              margin-bottom: 14px;
+              background: linear-gradient(135deg, var(--text) 30%, var(--accent-500) 55%, var(--teal-600) 80%);
+              -webkit-background-clip: text;
+              -webkit-text-fill-color: transparent;
+              background-clip: text;
+            "
+          >
+            AI 研发中台
+          </h1>
+          <p
+            style="
+              max-width: 640px;
+              margin: 0 auto 18px;
+              font-size: clamp(0.92rem, 1.5vw, 1.1rem);
+              color: var(--text-80);
+              line-height: 1.75;
+            "
+          >
+            不只是工具——把优秀 PM 的思考方式沉淀为可复用工作流
+          </p>
+          <p style="font-size: clamp(0.75rem, 1.15vw, 0.9rem); color: var(--text-60); letter-spacing: 0.02em">
+            线上化 → 方法论沉淀 → 组织能力扩散
+          </p>
+
+          <!-- mythology + value -->
+          <div class="bdge" style="margin-bottom: 10px">🌊 Oceanus</div>
+          <div
+            style="
+              display: flex;
+              align-items: stretch;
+              gap: 0;
+              max-width: 720px;
+              margin-left: auto;
+              margin-right: auto;
+              text-align: center;
+            "
+          >
+            <div
+              style="
+                flex: 1;
+                padding: 22px 22px;
+                border-radius: 1rem 0 0 1rem;
+                background: var(--teal-50);
+                border: 1px solid rgba(13, 148, 136, 0.15);
+                border-right: none;
+              "
+            >
+              <p
+                style="
+                  font-size: clamp(0.7rem, 0.92vw, 0.76rem);
+                  color: var(--teal-600);
+                  font-weight: 700;
+                  letter-spacing: 0.1em;
+                  margin: 0 0 8px;
+                "
+              >
+                命 名 寓 意
+              </p>
+              <p style="font-size: clamp(0.9rem, 1.25vw, 1rem); color: var(--text-80); line-height: 1.85; margin: 0">
+                <strong style="color: var(--teal-600)">俄刻阿诺斯</strong>，古希腊大洋神<br />
+                永不枯竭的巨川<br />
+                <strong>万物之源，万流之宗</strong>
+              </p>
+            </div>
+            <div
+              style="
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 40px;
+                flex-shrink: 0;
+                background: linear-gradient(90deg, var(--teal-50), var(--accent-50));
+              "
+            >
+              <span style="color: var(--accent-400); font-size: 1.2rem; font-weight: 700">→</span>
+            </div>
+            <div
+              style="
+                flex: 1.3;
+                padding: 22px 22px;
+                border-radius: 0 1rem 1rem 0;
+                background: var(--accent-50);
+                border: 1px solid rgba(79, 70, 229, 0.15);
+                border-left: none;
+              "
+            >
+              <p
+                style="
+                  font-size: clamp(0.7rem, 0.92vw, 0.76rem);
+                  color: var(--accent-600);
+                  font-weight: 700;
+                  letter-spacing: 0.1em;
+                  margin: 0 0 8px;
+                "
+              >
+                对 公 司 的 价 值
+              </p>
+              <p style="font-size: clamp(0.9rem, 1.25vw, 1rem); color: var(--text-80); line-height: 1.85; margin: 0">
+                所有产品从<strong style="color: var(--accent-600)">同一源头</strong>诞生<br />
+                共享方法论与工作流<br />
+                <strong>持续滋养，生生不息</strong>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- SLIDE 2: 背景与思路 -->
+      <div class="slide" data-index="1">
+        <div class="slide-inner">
+          <div class="eyebrow">定位</div>
+          <h2>背景与思路 <span class="sub">DeepStorm 奠定了 Skill 体系，Oceanus 让它惠及每一个人</span></h2>
+
+          <div class="mb" style="max-width: none">
+            <div class="tx">
+              DeepStorm 是 Claude Code 的工程化 Skill 套件，专注<strong>本地开发场景</strong>——但对
+              PM、运营等<strong>非技术角色不够友好</strong>。<br />
+              Oceanus 将 DeepStorm 能力搬到 Web 平台，让所有人都能零门槛接入 AI 研发能力。
+            </div>
+          </div>
+
+          <div class="cards cards-3">
+            <div class="card">
+              <h4><span class="ci">🧩</span>流程缺少标准</h4>
+              <p>
+                每个团队工作方式不同——需求怎么讨论、PRD
+                怎么写，<strong>没有形成组织级规范</strong>。每次启动新项目都要重新对齐流程。
+              </p>
+            </div>
+            <div class="card">
+              <h4><span class="ci">📦</span>优秀能力难复制</h4>
+              <p>
+                优秀 PM
+                的分析框架、评估方法存活在个人脑中。人一走经验就带走——<strong>需要机制把隐性知识显性化</strong>。
+              </p>
+            </div>
+            <div class="card">
+              <h4><span class="ci">🏗️</span>DeepStorm 需要平台化</h4>
+              <p>
+                DeepStorm 已有 5 套件 11+ Skill，但<strong>限于本地 Claude Code</strong>——对非技术角色不够友好。Web
+                平台化，释放资产价值。
+              </p>
+            </div>
+          </div>
+
+          <div class="compare" style="margin-top: 4px">
+            <div class="col">
+              <h4>⚠️ 传统研发模式</h4>
+              <ul>
+                <li><span class="cr">✗</span> 每个项目从零搭建工具链与流程</li>
+                <li><span class="cr">✗</span> 人员流动 → <strong>知识断档</strong></li>
+                <li><span class="cr">✗</span> 隐性知识无法沉淀为组织能力</li>
+              </ul>
+            </div>
+            <div class="col pick">
+              <h4 style="color: var(--accent-600)">🌊 Oceanus 方案</h4>
+              <ul>
+                <li><span class="ck">✅</span> 统一平台承载所有项目的研发基础设施</li>
+                <li><span class="ck">✅</span> 方法论编码为 Skill → <strong>组织级资产</strong></li>
+                <li><span class="ck">✅</span> 隐性知识 → 可复用工作流 → 持续进化</li>
+              </ul>
+            </div>
+          </div>
+
+          <h3 style="margin-top: 6px">从 DeepStorm 到 Oceanus</h3>
+          <div class="db">
+            <div class="r" style="gap: 8px; margin-bottom: 6px">
+              <span class="bx a">DeepStorm<span class="bs">工程化 Skill 套件</span></span>
+              <span class="ar">→</span>
+              <span class="bx p">Skill 体系<span class="bs">11+ 内置技能</span></span>
+              <span class="ar">→</span>
+              <span class="bx t">Oceanus 平台<span class="bs">Web · 零门槛</span></span>
+              <span class="ar">→</span>
+              <span class="bx g">全员可用<span class="bs">组织级资产</span></span>
+            </div>
+            <p style="font-size: clamp(0.62rem, 0.88vw, 0.72rem); margin: 0; color: var(--text-60)">
+              DeepStorm 是地基——提供了经过验证的 Skill 体系；Oceanus 是平台——搭载 Harness Agent
+              引擎，让这些能力从开发者本地走向全组织 Web 使用。
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- SLIDE 3: 技术路线 -->
+      <div class="slide" data-index="2">
+        <div class="slide-inner">
+          <div class="eyebrow">技术选型</div>
+          <h2>技术架构的底层逻辑 <span class="sub">Harness Agent vs LangGraph — 两条路线的本质区别</span></h2>
+
+          <div class="compare">
+            <div class="col pick">
+              <h4 style="color: var(--accent-600)">🔄 Harness Agent（我们的选择）</h4>
+              <ul>
+                <li><span class="ck">✅</span> Harness Agent <strong>运行时自主决策</strong>，流程不写死</li>
+                <li><span class="ck">✅</span> Skills 是<strong>行为指令文档</strong>，动态加载按需消费</li>
+                <li><span class="ck">✅</span> 每个任务独立的 agent 循环：<strong>思考→调工具→观察→再思考</strong></li>
+                <li><span class="ck">✅</span> 适合需求讨论、问题诊断等<strong>流程不确定的开放型任务</strong></li>
+                <li><span class="ck">✅</span> 代表：<strong>Claude Agent SDK</strong></li>
+              </ul>
+            </div>
+            <div class="col">
+              <h4>📋 LangGraph / Pipeline</h4>
+              <ul>
+                <li><span class="cr">✗</span> 流程编码时<strong>固化为 DAG</strong>，A→B→C→D 不变</li>
+                <li><span class="cr">✗</span> 工具是<strong>原子函数</strong>，需手动定义 schema 注册</li>
+                <li><span class="cr">✗</span> 任务是<strong>流水线</strong>：走到哪步预先确定</li>
+                <li><span class="cr">✗</span> 适合数据清洗、文档批处理等<strong>流程确定的任务</strong></li>
+                <li><span class="cr">✗</span> 代表：LangChain LangGraph</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="cards cards-3" style="margin-top: 4px">
+            <div class="card">
+              <h4>❓ 需求讨论无固定流程</h4>
+              <p>想法诊断可能往任何方向走——市场分析、技术可行性、竞品对比。无法预画 DAG 覆盖所有路径。</p>
+            </div>
+            <div class="card">
+              <h4>📜 Skills 是核心资产</h4>
+              <p>Skill 是<strong>行为指令文档</strong>而非代码。只有 Harness Agent 的设计能原生消费这种指令。</p>
+            </div>
+            <div class="card">
+              <h4>🧵 多角色互动是动态的</h4>
+              <p>BMAD 中 Boss/Manager/Architect/Developer 的互动取决于进展，不是固定顺序。</p>
+            </div>
+          </div>
+
+          <hr class="sd" />
+
+          <h3>选择市面上已有的方案</h3>
+          <div class="hl">
+            <p>
+              我们是<strong>业务团队</strong>，核心价值在于理解业务场景、沉淀业务 Skill。<br />
+              Claude Agent SDK 已处理好——<strong>tool_use 循环</strong>、<strong>流式事件</strong>、<strong
+                >MCP 协议</strong
+              >、<strong>上下文管理</strong>、<strong>权限控制</strong>、<strong>Session 管理</strong>——这些是
+              <strong>引擎通用能力，不是我们的壁垒，Skill 才是</strong>。<br />
+              站在成熟 SDK 之上聚焦业务，而非从零搭基础设施。
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- SLIDE 4: 系统架构 -->
+      <div class="slide" data-index="3">
+        <div class="slide-inner">
+          <div class="eyebrow">架构</div>
+          <h2>系统架构设计 <span class="sub">五层分层 + 四个设计原则</span></h2>
+
+          <div class="arch">
+            <div class="row l0">
+              <span class="lb">Frontend</span>
+              <div class="r">
+                <span class="m">💬 聊天 UI<span class="ms">SSE 流式渲染</span></span>
+                <span class="m">📂 项目管理<span class="ms">多项目切换</span></span>
+                <span class="m">📋 资产查看<span class="ms">PRD / 报告</span></span>
+                <span class="m">⚙️ 后台管理<span class="ms">评估/配置</span></span>
+              </div>
+            </div>
+            <div class="arch-cv">▾</div>
+            <div class="row l1">
+              <span class="lb">Oceanus<br />Orchestrator</span>
+              <div class="r">
+                <span class="m">Session 管理<span class="ms">生命周期</span></span>
+                <span class="m">SSE Bridge<span class="ms">事件流直通</span></span>
+                <span class="m">🔌 MCP 连接<span class="ms">外部服务接入</span></span>
+                <span class="m">Asset 提取<span class="ms">产出结构化</span></span>
+                <span class="m">Cost 追踪<span class="ms">成本记录</span></span>
+              </div>
+            </div>
+            <div class="arch-cv">▾</div>
+            <div class="row l2">
+              <span class="lb">AI Engine<br />Claude Agent SDK</span>
+              <div class="r">
+                <span class="m">🔄 Agent 循环<span class="ms">tool_use loop</span></span>
+                <span class="m">📜 Skills 消费<span class="ms">SKILL.md 加载</span></span>
+                <span class="m">🧠 Context 构建<span class="ms">上下文组装</span></span>
+                <span class="m">🔀 Model Router<span class="ms">模型选择</span></span>
+                <span class="m">⚡ 流事件<span class="ms">stream 输出</span></span>
+              </div>
+            </div>
+            <div class="arch-cv">▾</div>
+            <div class="row l3">
+              <span class="lb">Skill Layer</span>
+              <div class="r" style="align-items: center">
+                <span
+                  style="
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 3px;
+                    padding: 2px 6px 2px 3px;
+                    border-radius: 6px;
+                    background: var(--accent-50);
+                    border: 1px solid var(--accent-200);
+                  "
+                >
+                  <span
+                    style="
+                      font-size: 0.58rem;
+                      font-weight: 700;
+                      color: var(--accent-500);
+                      padding: 0 3px;
+                      white-space: nowrap;
+                    "
+                    >DeepStorm</span
+                  >
+                  <span class="m">📄 tide-discuss<span class="ms">讨论→PRD→任务</span></span>
+                  <span class="m">🪸 reef-*<span class="ms">提交/PR/审查</span></span>
+                  <span class="m">🧹 sweep-*<span class="ms">测试/覆盖率/CI</span></span>
+                </span>
+                <span class="m">➕ 自定义 Skill<span class="ms">业务自建</span></span>
+              </div>
+            </div>
+            <div class="arch-cv">▾</div>
+            <div class="row l4">
+              <span class="lb">Infrastructure</span>
+              <div class="r">
+                <span class="m">🐘 PostgreSQL<span class="ms">Prisma ORM</span></span>
+                <span class="m">📊 Langfuse<span class="ms">可观测/评估</span></span>
+                <span class="m">📝 日志系统<span class="ms"></span></span>
+                <span class="m">📁 文件存储<span class="ms">本地/对象存储</span></span>
+              </div>
+            </div>
+          </div>
+
+          <hr class="sd" />
+
+          <h3>四个架构原则</h3>
+          <div class="pg">
+            <div class="pc">
+              <div class="n">1</div>
+              <div class="b">
+                <h4>SDK 黑盒</h4>
+                <p>Agent 循环是 SDK 内部实现。Oceanus 只观察、不介入。SDK 升级不影响平台。</p>
+              </div>
+            </div>
+            <div class="pc">
+              <div class="n">2</div>
+              <div class="b">
+                <h4>项目隔离</h4>
+                <p>每个项目独立目录，SDK 通过 <code>cwd</code> 实现天然隔离。不引入容器，降低复杂度。</p>
+              </div>
+            </div>
+            <div class="pc">
+              <div class="n">3</div>
+              <div class="b">
+                <h4>SSE 直通</h4>
+                <p>流事件 → RxJS Subject → SSE → 浏览器。中间不缓存不转写，保留原始执行过程。</p>
+              </div>
+            </div>
+            <div class="pc">
+              <div class="n">4</div>
+              <div class="b">
+                <h4>Skill 即资产</h4>
+                <p>核心积累不是代码，是持续沉淀的 Skill 库。知识、流程最终体现为 SKILL.md。</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- SLIDE 5: Skill 体系 -->
+      <div class="slide" data-index="4">
+        <div class="slide-inner">
+          <div class="eyebrow" style="margin-bottom: 6px">能力扩展</div>
+          <h2 style="margin-bottom: 6px">
+            Skill 市场
+            <span class="sub"
+              >DeepStorm 内置 Skill（平台提供） + 自定义 Skill（业务沉淀） = Oceanus 持续进化的能力源泉</span
+            >
+          </h2>
+
+          <div class="mb" style="max-width: none; padding: 5px 12px; margin-bottom: 6px">
+            <div class="tx" style="font-size: clamp(0.74rem, 1.05vw, 0.86rem)">
+              <strong>DeepStorm</strong> 是 Oceanus 平台内置的 Skill
+              系列——<strong>开箱即用</strong>，覆盖需求讨论、代码提交、PR 审查等全流程。 团队在此基础上沉淀<strong
+                >自定义 Skill</strong
+              >，业务经验编码为可复用资产——每一份积累都在滋养整个组织。
+            </div>
+          </div>
+
+          <div class="compare" style="gap: 8px; margin: 4px 0">
+            <div
+              class="col pick"
+              style="border-color: var(--accent-400); background: var(--accent-50); padding: 0.7rem 0.85rem"
+            >
+              <h4 style="color: var(--accent-600); margin-bottom: 4px">
+                🌊 DeepStorm 内置 Skill <span class="hm g" style="margin-left: auto">平台提供</span>
+              </h4>
+              <div
+                style="
+                  border: 1px solid var(--accent-200);
+                  border-radius: 0.65rem;
+                  padding: 4px;
+                  background: rgba(255, 255, 255, 0.5);
+                "
+              >
+                <div
+                  style="
+                    font-size: 0.58rem;
+                    font-weight: 700;
+                    color: var(--accent-500);
+                    margin-bottom: 3px;
+                    padding-left: 3px;
+                    letter-spacing: 0.08em;
+                  "
+                >
+                  DEEPSTORM
+                </div>
+                <div class="card" style="margin-bottom: 4px; background: var(--surface); padding: 0.7rem 0.85rem">
+                  <h4>📄 tide-discuss</h4>
+                  <p>BMAD 多角色需求讨论 → PRD 生成 → 任务拆分，覆盖 PM 完整工作流。</p>
+                </div>
+                <div class="card" style="background: var(--surface); padding: 0.7rem 0.85rem">
+                  <h4>🪸 reef-* / sweep-* 系列</h4>
+                  <p>11 个 Skill 覆盖提交、PR、代码审查、文档加固、测试用例、E2E 测试。</p>
+                </div>
+              </div>
+            </div>
+            <div
+              class="col pick"
+              style="border-color: var(--gold-500); background: var(--gold-100); padding: 0.7rem 0.85rem"
+            >
+              <h4 style="color: var(--gold-600); margin-bottom: 4px">
+                🧩 自定义 Skill <span class="hm a" style="margin-left: auto">团队沉淀</span>
+              </h4>
+              <div class="card" style="margin-bottom: 4px; background: var(--surface); padding: 0.7rem 0.85rem">
+                <h4>团队 A：支付业务 Skill</h4>
+                <p>封装支付风控排查流程、对账异常诊断等团队特有的业务经验。</p>
+              </div>
+              <div class="card" style="background: var(--surface); padding: 0.7rem 0.85rem">
+                <h4>团队 B：运营数据分析 Skill</h4>
+                <p>连接数据仓库 MCP，自动拉取指标、生成分析报告、推送结论到飞书。</p>
+              </div>
+            </div>
+          </div>
+
+          <hr class="sd" style="margin: 8px 0" />
+
+          <div class="cards cards-3" style="gap: 6px; margin: 4px 0">
+            <div
+              class="card"
+              style="border-left: 3px solid var(--accent-600); text-align: center; padding: 0.8rem 0.9rem"
+            >
+              <h4 style="color: var(--accent-600)">
+                📄 Skill <span style="font-weight: 400; font-size: 0.85em; color: var(--text-60)">— 定义做什么</span>
+              </h4>
+              <p>SKILL.md 描述业务流程，放到项目目录即可被 Agent 识别。</p>
+            </div>
+            <div
+              class="card"
+              style="border-left: 3px solid var(--teal-600); text-align: center; padding: 0.8rem 0.9rem"
+            >
+              <h4 style="color: var(--teal-600)">
+                🔌 MCP <span style="font-weight: 400; font-size: 0.85em; color: var(--text-60)">— 能调什么</span>
+              </h4>
+              <p>标准协议对接外部系统：Jira、飞书、数据库、API 等。</p>
+            </div>
+            <div class="card" style="border-left: 3px solid #7c3aed; text-align: center; padding: 0.8rem 0.9rem">
+              <h4 style="color: #7c3aed">
+                🧠 Harness Agent
+                <span style="font-weight: 400; font-size: 0.85em; color: var(--text-60)">— 决定怎么执行</span>
+              </h4>
+              <p>读取 Skill 指令，自主决策何时调用哪个 MCP 工具。</p>
+            </div>
+          </div>
+
+          <div class="db" style="text-align: center; padding: 6px 10px; margin: 4px 0">
+            <div class="r" style="justify-content: center">
+              <span class="bx a">DeepStorm 内置 Skill</span>
+              <span class="ar">+</span>
+              <span class="bx o">自定义 Skill</span>
+              <span class="ar">+</span>
+              <span class="bx t">MCP</span>
+              <span class="ar">→</span>
+              <span class="bx p">Harness Agent</span>
+              <span class="ar">→</span>
+              <span class="bx g">Oceanus 持续进化的平台能力</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- SLIDE 6: 核心流程 -->
+      <div class="slide" data-index="5">
+        <div class="slide-inner">
+          <div class="eyebrow">流程</div>
+          <h2>一次对话的完整流程 <span class="sub">从用户输入到结果展示</span></h2>
+
+          <ol class="flow">
+            <li>
+              <strong>用户发送消息</strong>
+              <div class="sub">Angular → POST /api/v1/chat → Controller</div>
+            </li>
+            <li>
+              <strong>Oceanus 准备执行环境</strong>
+              <div class="sub">SessionManager 加载历史 → 确定项目 cwd → 列出可用 Skill → 配置 MCP Server</div>
+            </li>
+            <li>
+              <strong>SDK.query() 启动 Agent 循环</strong>
+              <div class="sub">传入上下文，SDK 自动完成 Context 组装 + Model 选择，进入 tool_use 循环</div>
+            </li>
+            <li>
+              <strong>Agent 内部循环（SDK 黑盒）</strong>
+              <div class="sub">识别 Skill → 加载 SKILL.md → 按指令执行 → 调工具/MCP → 分析结果 → 继续或完成</div>
+            </li>
+            <li>
+              <strong>SSE Bridge 实时转发</strong>
+              <div class="sub">stream_event → RxJS Subject → SSE Endpoint → 浏览器 EventSource → UI 实时渲染</div>
+            </li>
+            <li>
+              <strong>Agent 返回最终结果</strong>
+              <div class="sub">structured_output + 文件产物 → AssetExtractor 提取资产 → 写入数据库</div>
+            </li>
+            <li>
+              <strong>前端展示完成</strong>
+              <div class="sub">最终回复 + 资产列表 + 本次对话成本</div>
+            </li>
+          </ol>
+
+          <div class="hl">
+            <p>
+              <strong>关键设计：</strong>Oceanus <strong>不介入</strong> Agent
+              的决策循环。平台只在两端做事——启动前准备上下文，执行中监听事件流。SDK 升级完全不影响平台。
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- SLIDE 7: MVP -->
+      <div class="slide" data-index="6">
+        <div class="slide-inner">
+          <div class="eyebrow">规划</div>
+          <h2>MVP 范围与路线图 <span class="sub">做什么、不做什么、为什么</span></h2>
+
+          <div class="tc">
+            <div>
+              <h3>MVP 包含</h3>
+              <table class="dt">
+                <tr>
+                  <td>Skill 管理</td>
+                  <td><span class="tag tag-g">内置 DeepStorm</span></td>
+                </tr>
+                <tr>
+                  <td>项目管理</td>
+                  <td><span class="tag tag-g">cwd 隔离</span></td>
+                </tr>
+                <tr>
+                  <td>对话/会话</td>
+                  <td><span class="tag tag-g">DB 存储 + SSE</span></td>
+                </tr>
+                <tr>
+                  <td>文档生成</td>
+                  <td><span class="tag tag-g">PRD / 诊断报告</span></td>
+                </tr>
+                <tr>
+                  <td>可观测</td>
+                  <td><span class="tag tag-g">Langfuse + Cost</span></td>
+                </tr>
+                <tr>
+                  <td>质量评估</td>
+                  <td><span class="tag tag-g">LLM-as-Judge</span></td>
+                </tr>
+                <tr>
+                  <td>用户系统</td>
+                  <td><span class="tag tag-a">静态 admin 登录</span></td>
+                </tr>
+              </table>
+            </div>
+            <div>
+              <h3>后续 Phase</h3>
+              <table class="dt">
+                <tr>
+                  <td>自定义 Skill</td>
+                  <td><span class="tag tag-a">Phase 3</span></td>
+                </tr>
+                <tr>
+                  <td>MCP 服务对接</td>
+                  <td><span class="tag tag-a">Phase 3</span></td>
+                </tr>
+                <tr>
+                  <td>Docker 隔离</td>
+                  <td><span class="tag tag-a">按需</span></td>
+                </tr>
+                <tr>
+                  <td>Skill 市场</td>
+                  <td><span class="tag tag-r">远期</span></td>
+                </tr>
+                <tr>
+                  <td>多角色工作流</td>
+                  <td><span class="tag tag-r">远期</span></td>
+                </tr>
+                <tr>
+                  <td>自动评估</td>
+                  <td><span class="tag tag-r">远期</span></td>
+                </tr>
+              </table>
+            </div>
+          </div>
+
+          <h3>开发阶段</h3>
+          <div class="db">
+            <div class="r">
+              <span class="bx a">Phase 1</span>
+              <span style="color: var(--text-60); font-size: clamp(0.64rem, 0.9vw, 0.72rem)"
+                >平台搭建 — 脚手架 + Session/Chat API + SDK 集成 + 项目对话闭环</span
+              >
+            </div>
+            <div class="r">
+              <span class="bx g">Phase 2</span>
+              <span style="color: var(--text-60); font-size: clamp(0.64rem, 0.9vw, 0.72rem)"
+                >体验完善 — SSE 流式 + 前端聊天 UI + DeepStorm Skill 集成 + 资产提取</span
+              >
+            </div>
+            <div class="r">
+              <span class="bx p">Phase 3</span>
+              <span style="color: var(--text-60); font-size: clamp(0.64rem, 0.9vw, 0.72rem)"
+                >生态扩展 — 自定义 Skill + MCP 对接 + Langfuse 可观测 + LLM-as-Judge 评估</span
+              >
+            </div>
+          </div>
+
+          <div class="hl" style="margin-top: 6px">
+            <p>
+              <strong>MVP 原则：</strong>核心链路（对话 → Agent → 产出 →
+              持久化）必须完整可运行。辅助能力框架到位不追求完美。自定义 Skill 和 MCP 是平台从"工具"变成"平台"的关键。
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- SLIDE 8: End -->
+      <div class="slide slide-cover" data-index="7">
+        <div class="slide-inner">
+          <h1>谢谢</h1>
+          <p style="font-size: clamp(0.9rem, 1.4vw, 1.05rem); margin-bottom: 20px; color: var(--text-60)">Q & A</p>
+          <div class="bdge" style="margin-bottom: 24px">Oceanus — AI 研发中台</div>
+          <p
+            style="
+              font-size: clamp(0.8rem, 1.15vw, 0.9rem);
+              color: var(--text-60);
+              max-width: 560px;
+              margin: 0 auto;
+              line-height: 1.85;
+            "
+          >
+            <strong style="color: var(--text)">核心结论回顾：</strong><br />
+            Harness Agent 架构 → Claude Agent SDK → Skills 体系 → 内置起步，自定义扩展<br />
+            我们是业务团队，站在成熟方案上做业务，不重复造轮子
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        const s = document.querySelectorAll('.slide');
+        const p = document.getElementById('pBtn');
+        const n = document.getElementById('nBtn');
+        const d = document.getElementById('dots');
+        let i = 0;
+
+        s.forEach((_, j) => {
+          const o = document.createElement('span');
+          o.className = 'dot';
+          o.addEventListener('click', () => go(j));
+          d.appendChild(o);
+        });
+        const dt = d.querySelectorAll('.dot');
+
+        function go(j) {
+          s.forEach((x, k) => x.classList.toggle('active', k === j));
+          i = j;
+          p.disabled = j === 0;
+          n.disabled = j === s.length - 1;
+          dt.forEach((x, k) => x.classList.toggle('active', k === j));
+        }
+
+        p.addEventListener('click', () => {
+          if (i > 0) go(i - 1);
+        });
+        n.addEventListener('click', () => {
+          if (i < s.length - 1) go(i + 1);
+        });
+        document.addEventListener('keydown', (e) => {
+          if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') {
+            e.preventDefault();
+            if (i < s.length - 1) go(i + 1);
+          }
+          if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (i > 0) go(i - 1);
+          }
+        });
+        go(0);
+      })();
+    </script>
+  </body>
+</html>
