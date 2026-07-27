@@ -4,7 +4,7 @@
 
 ## 前置条件
 
-- Node.js >= 20
+- Node.js >= 24
 - pnpm >= 9
 - Docker
 
