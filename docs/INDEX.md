@@ -19,32 +19,21 @@
 | [数据模型](2-architecture/data-model.md)   | Prisma schema、表关系         |
 | [架构决策记录](2-architecture/decisions/)  | ADR 索引（ADR-001 ~ ADR-010） |
 
-## 🔌 API 参考
-
-| 入口                               | 说明                               |
-| ---------------------------------- | ---------------------------------- |
-| [API 文档](3-api/api-reference.md) | REST 端点、SSE 事件、请求/响应格式 |
-
-## 🎨 前端
-
-| 入口                                    | 说明                     |
-| --------------------------------------- | ------------------------ |
-| [组件与布局](4-ui/component-gallery.md) | PrimeNG 封装、路由、布局 |
-| [状态管理](4-ui/state-management.md)    | Signal、SSE 流式状态     |
-
 ## ⚙️ 运维
 
-| 入口                                     | 说明                     |
-| ---------------------------------------- | ------------------------ |
-| [部署指南](5-operations/deployment.md)   | Docker 部署、生产配置    |
-| [监控与日志](5-operations/monitoring.md) | Grafana、Loki、GlitchTip |
+| 入口                                   | 说明                  |
+| -------------------------------------- | --------------------- |
+| [部署指南](3-operations/deployment.md) | Docker 部署、生产配置 |
 
-## 🤝 贡献
+## 📚 自定义参考
 
-| 入口                                       | 说明              |
-| ------------------------------------------ | ----------------- |
-| [贡献指南](6-contributing/CONTRIBUTING.md) | 代码规范、PR 流程 |
-| [更新日志](6-contributing/CHANGELOG.md)    | 版本历史          |
+> `4-references/` 为项目自有内容，用户可按需增删。
+
+| 入口                                           | 说明               |
+| ---------------------------------------------- | ------------------ |
+| [演示文稿](4-references/presentation.html)     | 项目宣讲 PPT       |
+| [历史规划](4-references/plans/)                | 各阶段的规划文档   |
+| [验证报告](4-references/verification-reports/) | 功能验证与测试报告 |
 
 ---
 

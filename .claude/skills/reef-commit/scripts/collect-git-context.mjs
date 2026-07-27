@@ -23,7 +23,9 @@ import { join } from 'node:path';
 export function parseDiffStat(output) {
   const lines = output.trim().split('\n').filter(Boolean);
   const changedFiles = [];
-  let files = 0, insertions = 0, deletions = 0;
+  let files = 0,
+    insertions = 0,
+    deletions = 0;
 
   for (const line of lines) {
     // 匹配汇总行: "2 files changed, 13 insertions(+), 2 deletions(-)"
@@ -53,10 +55,12 @@ export function parseDiffStat(output) {
  */
 export function parseCommitLog(output) {
   const lines = output.trim().split('\n').filter(Boolean);
-  return lines.map(line => {
-    const match = line.match(/^(\S+)\s+(.*)/);
-    return match ? { hash: match[1], message: match[2] } : null;
-  }).filter(Boolean);
+  return lines
+    .map((line) => {
+      const match = line.match(/^(\S+)\s+(.*)/);
+      return match ? { hash: match[1], message: match[2] } : null;
+    })
+    .filter(Boolean);
 }
 
 /**
@@ -104,23 +108,21 @@ export function collectContext() {
     error = '无法找到基准点';
   }
   const diffStat = exec(`git diff "${forkPoint || 'main'}..HEAD" --stat`);
-  const commitLogRaw = forkPoint
-    ? exec(`git log "${forkPoint}"..HEAD --oneline`)
-    : '';
+  const commitLogRaw = forkPoint ? exec(`git log "${forkPoint}"..HEAD --oneline`) : '';
   const statusShort = exec('git status --short');
   const hasUncommitted = statusShort.length > 0;
 
   // OpenSpec change 扫描
   let openspecChanges = null;
-  const root = exec('git rev-parse --show-toplevel 2>/dev/null || echo ""');
+  const root = exec('git rev-parse --show-toplevel');
   if (root) {
     const changesDir = join(root, 'openspec', 'changes');
     if (existsSync(changesDir)) {
       try {
         const entries = readdirSync(changesDir, { withFileTypes: true });
         const changeDirs = entries
-          .filter(e => e.isDirectory() && e.name !== 'archive')
-          .map(e => {
+          .filter((e) => e.isDirectory() && e.name !== 'archive')
+          .map((e) => {
             const proposalPath = join(changesDir, e.name, 'proposal.md');
             const hasProposal = existsSync(proposalPath);
             let title = e.name;

@@ -107,8 +107,7 @@ export function parseDotEnv(content) {
     const key = trimmed.slice(0, sepIdx).trim();
     let value = trimmed.slice(sepIdx + 1).trim();
     // Strip surrounding quotes
-    if ((value.startsWith('"') && value.endsWith('"')) ||
-        (value.startsWith("'") && value.endsWith("'"))) {
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
       value = value.slice(1, -1);
     }
     env[key] = value;
@@ -306,7 +305,7 @@ if (process.argv[1] === import.meta.filename) {
   }
 
   if (args.includes('--check-mcp')) {
-    const mcpName = args.find(a => a.startsWith('--mcp='))?.split('=')[1] || 'deepstorm-playwright';
+    const mcpName = args.find((a) => a.startsWith('--mcp='))?.split('=')[1] || 'deepstorm-playwright';
     const result = checkMcpAvailable(mcpName);
     console.log(JSON.stringify(result));
     process.exit(0);
@@ -333,7 +332,7 @@ if (process.argv[1] === import.meta.filename) {
   }
 
   // Default: resolve env
-  const envFlag = args.find(a => a.startsWith('--env='));
+  const envFlag = args.find((a) => a.startsWith('--env='));
   const envName = envFlag ? envFlag.split('=')[1] : undefined;
   const result = resolveEnv(envName);
 
@@ -342,7 +341,7 @@ if (process.argv[1] === import.meta.filename) {
       console.log(`export BASE_URL=${result.baseUrl}`);
     } else {
       console.error(`# No base URL found for environment "${result.env}"`);
-      console.error(`# Available: ${result.availableEnvs.map(e => e.name).join(', ')}`);
+      console.error(`# Available: ${result.availableEnvs.map((e) => e.name).join(', ')}`);
       process.exit(1);
     }
   } else {
