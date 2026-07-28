@@ -39,9 +39,7 @@
 | Server        | 3100 | NestJS 后端          |
 | Client        | 80   | Angular 前端 (Nginx) |
 | GlitchTip Web | 8000 | 错误追踪控制台       |
-| Loki          | 3100 | 日志存储             |
-| Promtail      | —    | 日志采集             |
-| Grafana       | 3002 | 日志可视化           |
+| SigNoz        | 8080 | 日志聚合与搜索       |
 
 ### 日常命令
 
@@ -112,27 +110,27 @@ glitchtipDsn: 'http://<key>@localhost:8000/<project_id>',
 
 ---
 
-## Grafana + Loki 日志
+## SigNoz 日志
+
+> SigNoz（Apache 2.0）是 Oceanus 的集中日志平台，提供日志搜索、过滤和可视化能力。
 
 ### 前提
 
 ```bash
-docker compose --profile app up -d
+docker compose up -d signoz signoz-otel-collector signoz-clickhouse signoz-zookeeper
 ```
 
 ### 访问
 
 ```bash
-open http://localhost:3002
+open http://localhost:8080
 ```
 
-Grafana 已预配置 Loki 数据源和 "Oceanus 日志" 仪表盘，包含：
+SigNoz UI 提供日志搜索与分析功能：
 
-| 面板         | 用途                       |
-| ------------ | -------------------------- |
-| 实时日志流   | 按时间倒序查看全部日志     |
-| 日志级别分布 | 柱状图展示各级别日志数量   |
-| 日志时间序列 | 折线图展示日志量随时间变化 |
+- **Logs Explorer** — 按时间倒序浏览全部日志，支持 `service.name`、`severity`、时间范围过滤
+- **实时日志流** — 自动刷新最新日志
+- **日志-链路关联** — 日志自动携带 `trace_id` / `span_id`，可从日志跳转到对应 Trace
 
 ### 控制日志级别
 
@@ -149,8 +147,8 @@ LOG_LEVEL=info
 
 ```mermaid
 flowchart LR
-    Pino[Pino Logger] -->|stdout| Docker
-    Docker -->|logs| Promtail
-    Promtail -->|push| Loki[Loki 7天保留]
-    Loki -->|query| Grafana[Grafana 预配置仪表盘]
+    Pino[Pino Logger] -->|OTLP HTTP| OC[OTel Collector]
+    OC -->|batch write| CH[ClickHouse]
+    CH --> Signoz[SigNoz UI]
+    User -->|搜索/过滤| Signoz
 ```

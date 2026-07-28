@@ -24,10 +24,6 @@ Oceanus 的消息数据需要持久化，面临两条存储路径：PostgreSQL �
 - 删除会话时需要同时清理两条链路
 - 保持 DB 轻量（4 表：users / projects / sessions / assets）
 
-## 备选方案
-
-- **全量 DB 存储**：需要自定义 Message 表 + 序列化层，与 SDK SessionStore 功能重叠，增加维护成本
-
 ## Mermaid
 
 ```mermaid
