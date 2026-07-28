@@ -58,13 +58,15 @@ erDiagram
 
 ## 消息存储
 
-| 消息类型         | 存储位置                           | 用途              |
-| ---------------- | ---------------------------------- | ----------------- |
-| user / assistant | PostgreSQL messages 表             | 前端历史展示      |
-| result           | PostgreSQL messages 表 + assets 表 | 资产提取          |
-| stream_event     | 日志（不存 DB）                    | 前端 SSE 实时渲染 |
+| 消息类型         | 存储位置                       | 用途              |
+| ---------------- | ------------------------------ | ----------------- |
+| user / assistant | SDK JSONL 文件系统             | 前端历史展示      |
+| result           | SDK JSONL 文件系统 + assets 表 | 资产提取          |
+| stream_event     | 日志（不存 DB）                | 前端 SSE 实时渲染 |
 
-**注意：** `Message` 模型已从 Prisma schema 中移除。消息完整内容由 SDK JSONL 文件系统管理，DB 仅存映射关系和最终资产。
+消息完整内容由 SDK SessionStore（JSONL 文件系统）管理，DB 仅存会话映射关系（sessions 表）和最终资产（assets 表）。**不再使用 messages 表**。
+
+详细决策见 [ADR-001: 消息存储与数据库策略](decisions/ADR-001-message-storage.md)。
 
 ## 完整 schema
 

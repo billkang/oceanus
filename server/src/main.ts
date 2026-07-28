@@ -4,6 +4,10 @@ import { resolve } from 'path';
 // 在 NestJS ConfigModule 之前手动加载 .env，确保 Sentry.init 能读到环境变量
 config({ path: resolve(__dirname, '../.env') });
 
+// ⚠️ 必须保持在最前加载（import order 敏感）
+// 确保 OTel instrumentation 在所有 logger 调用之前就绪
+import './logging-otel';
+
 import 'reflect-metadata';
 import * as Sentry from '@sentry/node';
 

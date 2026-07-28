@@ -34,7 +34,7 @@ flowchart TB
     subgraph Infra[基础设施]
         PG[(PostgreSQL)]
         JSONL[(JSONL 文件)]
-        Loki[Grafana + Loki]
+        Logs[SigNoz<br/>日志聚合]
         Langfuse[Langfuse]
     end
 
@@ -43,16 +43,16 @@ flowchart TB
     SDK -->|Skills| Skills
     Orchestrator -->|Prisma| PG
     SDK -->|JSONL| JSONL
-    SDK -->|OTel| Langfuse
-    Orchestrator -->|stdout → Promtail| Loki
+    Orchestrator -->|OTel| Langfuse
+    Orchestrator -->|Pino → OTel| Logs
 ```
 
-| 层                   | 职责                                                                      |
-| -------------------- | ------------------------------------------------------------------------- |
-| **Web Portal**       | UI 展示、用户交互、SSE 流式渲染、资产管理                                 |
-| **Oceanus 编排层**   | 会话管理、SSE 桥接、模型路由、请求队列                                    |
-| **Claude Agent SDK** | Agent 循环、Skill 执行、MCP 工具调用、上下文窗口、OTel 可观测性           |
-| **基础设施**         | PostgreSQL（映射关系）、JSONL（消息内容）、Loki（日志）、Langfuse（追踪） |
+| 层                   | 职责                                                                        |
+| -------------------- | --------------------------------------------------------------------------- |
+| **Web Portal**       | UI 展示、用户交互、SSE 流式渲染、资产管理                                   |
+| **Oceanus 编排层**   | 会话管理、上下文窗口、SSE 桥接、资产提取、模型路由、请求队列                |
+| **Claude Agent SDK** | Agent 循环、Skill 执行、MCP 工具调用、OTel 可观测性                         |
+| **基础设施**         | PostgreSQL（映射关系）、JSONL（消息内容）、SigNoz（日志）、Langfuse（追踪） |
 
 **核心原则：SDK 负责循环，Oceanus 负责编排。** SDK 内部的 tool_use 循环是黑盒，Oceanus 通过 stream_event 监听但不控制。
 
@@ -118,14 +118,16 @@ flowchart LR
 
 ## 消息存储边界
 
-| 消息类型     | 来源         | 存储位置            | 用途                |
-| ------------ | ------------ | ------------------- | ------------------- |
-| stream_event | SDK 流事件   | 日志（不存 DB）     | 前端 SSE 渲染、调试 |
-| user         | SDK query    | PostgreSQL          | 历史展示            |
-| assistant    | SDK 回复     | PostgreSQL          | 历史展示            |
-| result       | SDK 最终输出 | PostgreSQL + Assets | 资产提取            |
+| 消息类型     | 来源         | 存储位置                       | 用途                |
+| ------------ | ------------ | ------------------------------ | ------------------- |
+| stream_event | SDK 流事件   | 日志（不存 DB）                | 前端 SSE 渲染、调试 |
+| user         | SDK query    | SDK JSONL 文件系统             | 历史展示            |
+| assistant    | SDK 回复     | SDK JSONL 文件系统             | 历史展示            |
+| result       | SDK 最终输出 | SDK JSONL 文件系统 + DB assets | 资产提取            |
 
-**原则**：user/assistant 存纯文本，result 存结构化 JSON，中间事件不入 DB。SDK 内部状态由 SDK 文件系统管理，Oceanus 不复制。
+**原则**：消息完整内容由 SDK SessionStore（JSONL）管理，DB 仅存映射关系和最终资产。stream_event 不入持久化存储。
+
+详细决策见 [ADR-001: 消息存储与数据库策略](decisions/ADR-001-message-storage.md)。
 
 ---
 
@@ -136,7 +138,7 @@ flowchart LR
 | Oceanus 后端（NestJS）  | 3100 |
 | Oceanus 前端（Angular） | 4300 |
 | Langfuse                | 3001 |
-| Grafana                 | 3002 |
+| SigNoz                  | 8080 |
 | GlitchTip               | 8000 |
 | PostgreSQL              | 5432 |
 | Redis                   | 6379 |
@@ -202,7 +204,7 @@ erDiagram
 | AI 引擎  | Claude Agent SDK（TypeScript）                           |
 | AI 模型  | 默认 Claude Sonnet 5，可切换国产模型                     |
 | 实时通信 | SSE                                                      |
-| 日志     | Pino → stdout → Promtail → Loki → Grafana                |
+| 日志     | Pino → OTel → SigNoz                                     |
 | 追踪     | OTel → Langfuse（自托管）                                |
 | 错误追踪 | GlitchTip（自托管，Sentry SDK 兼容）                     |
 | 包管理   | pnpm workspaces                                          |

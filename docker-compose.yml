@@ -5,6 +5,7 @@
 #   - PostgreSQL 17（主数据库）
 #   - Redis、ClickHouse、MinIO（Langfuse 3.x 依赖）
 #   - Langfuse 3.x（LLM 可观测性平台，Web + Worker）
+#   - SigNoz（日志聚合，OTel Collector + ClickHouse + ZooKeeper）
 
 services:
   postgres:
@@ -170,53 +171,6 @@ services:
       LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
       LANGFUSE_S3_EVENT_UPLOAD_PREFIX: "events/"
 
-  # ── Loki（日志存储）───────────────────────────────────────────
-  loki:
-    profiles: [app]
-    image: grafana/loki:latest
-    container_name: oceanus-loki
-    restart: unless-stopped
-    ports:
-      - "3100:3100"
-    volumes:
-      - ./infra/loki:/etc/loki
-      - loki_data:/loki
-    command: -config.file=/etc/loki/loki-config.yml
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3100/ready"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # ── Promtail（日志采集）───────────────────────────────────────
-  promtail:
-    profiles: [app]
-    image: grafana/promtail:latest
-    container_name: oceanus-promtail
-    restart: unless-stopped
-    volumes:
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./infra/promtail:/etc/promtail
-    command: -config.file=/etc/promtail/promtail-config.yml
-    depends_on:
-      loki:
-        condition: service_healthy
-
-  # ── Grafana（日志可视化）────────────────────────────────────
-  grafana:
-    profiles: [app]
-    image: grafana/grafana:latest
-    container_name: oceanus-grafana
-    restart: unless-stopped
-    ports:
-      - "3002:3000"
-    volumes:
-      - ./infra/grafana/provisioning:/etc/grafana/provisioning
-      - grafana_data:/var/lib/grafana
-    depends_on:
-      loki:
-        condition: service_healthy
 
   # ═══════════════════════════════════════════════════════════════
   # App Profile 服务（--profile app）
@@ -290,10 +244,64 @@ services:
       redis:
         condition: service_healthy
 
+  # ── SigNoz（日志聚合）─────────────────────────────────────────
+  signoz:
+    image: signoz/signoz:0.113.0
+    container_name: oceanus-signoz
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      signoz-clickhouse:
+        condition: service_healthy
+    environment:
+      SIGNOZ_CLICKHOUSE_DSN: tcp://signoz-clickhouse:9000
+
+  signoz-otel-collector:
+    image: signoz/otel-collector:0.113.0
+    container_name: oceanus-signoz-otel-collector
+    restart: unless-stopped
+    ports:
+      - "4317:4317"   # gRPC
+      - "4318:4318"   # HTTP
+    volumes:
+      - ./infra/otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    command:
+      - --config=/etc/otel-collector-config.yaml
+    depends_on:
+      signoz-clickhouse:
+        condition: service_healthy
+    environment:
+      SIGNOZ_OTEL_COLLECTOR_CLICKHOUSE_DSN: tcp://signoz-clickhouse:9000
+      LOW_CARDINAL_EXCEPTION_GROUPING: "true"
+
+  signoz-clickhouse:
+    image: clickhouse/clickhouse-server:24.12
+    container_name: oceanus-signoz-clickhouse
+    restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    volumes:
+      - signoz_clickhouse_data:/var/lib/clickhouse
+
+  signoz-zookeeper:
+    image: bitnami/zookeeper:3.9
+    container_name: oceanus-signoz-zookeeper
+    restart: unless-stopped
+    environment:
+      ALLOW_ANONYMOUS_LOGIN: "yes"
+
 volumes:
   postgres_data:
   redis_data:
   clickhouse_data:
   minio_data:
-  loki_data:
-  grafana_data:
+  signoz_clickhouse_data:
