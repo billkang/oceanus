@@ -28,7 +28,6 @@ processors:
     timeout: 2s
   signozspanmetrics/delta:
     metrics_exporter: signozclickhousemetrics
-    metrics_flush_interval: 60s
     latency_histogram_buckets:
       [
         100us,
@@ -51,7 +50,6 @@ processors:
       ]
     dimensions_cache_size: 100000
     aggregation_temporality: AGGREGATION_TEMPORALITY_DELTA
-    enable_exp_histogram: true
     dimensions:
       - name: service.namespace
         default: default
@@ -79,15 +77,13 @@ extensions:
 
 exporters:
   clickhousetraces:
-    datasource: tcp://signoz-clickhouse:9000/signoz_traces
+    datasource: tcp://signoz:@signoz-clickhouse:9000/signoz_traces
     low_cardinal_exception_grouping: ${env:LOW_CARDINAL_EXCEPTION_GROUPING}
-    use_new_schema: true
   signozclickhousemetrics:
-    dsn: tcp://signoz-clickhouse:9000/signoz_metrics
+    dsn: tcp://signoz:@signoz-clickhouse:9000/signoz_metrics
   clickhouselogsexporter:
-    dsn: tcp://signoz-clickhouse:9000/signoz_logs
+    dsn: tcp://signoz:@signoz-clickhouse:9000/signoz_logs
     timeout: 10s
-    use_new_schema: true
 
 service:
   telemetry:

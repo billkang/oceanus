@@ -1,3 +1,5 @@
+# DEPRECATED — 已被 SigNoz 替代。详见 openspec/changes/replace-signoz-grafana-loki-promtail/
+
 # Spec: Log Infrastructure
 
 ## Requirements

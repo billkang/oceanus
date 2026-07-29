@@ -133,16 +133,63 @@ flowchart LR
 
 ## 端口约定
 
-| 组件                    | 端口 |
-| ----------------------- | ---- |
-| Oceanus 后端（NestJS）  | 3100 |
-| Oceanus 前端（Angular） | 4300 |
-| Langfuse                | 3001 |
-| SigNoz                  | 8080 |
-| GlitchTip               | 8000 |
-| PostgreSQL              | 5432 |
-| Redis                   | 6379 |
-| ClickHouse              | 8123 |
+> `HOST:CONTAINER` 格式；标记 "—" 的容器不暴露端口到宿主机。
+
+### 基础设施（Docker default profile，`make db-up` 启动）
+
+| 服务                           | 宿主机端口 | 容器端口 | 说明                          |
+| ------------------------------ | ---------- | -------- | ----------------------------- |
+| PostgreSQL                     | 5432       | 5432     | 主数据库                      |
+| Redis                          | 6379       | 6379     | 缓存 / Langfuse 队列          |
+| ClickHouse（Langfuse）         | 8123       | 8123     | Langfuse 分析存储 HTTP        |
+| ClickHouse（Langfuse, Native） | 9000       | 9000     | Langfuse 分析存储 Native 协议 |
+| MinIO API                      | 9100       | 9000     | Langfuse S3 对象存储（API）   |
+| MinIO Console                  | 9101       | 9001     | Langfuse S3 对象存储（管理）  |
+| Langfuse Web                   | 3001       | 3000     | LLM 可观测性平台              |
+| Langfuse Worker                | —          | —        | 异步事件处理器                |
+| SigNoz UI                      | 3002       | 8080     | 日志聚合平台                  |
+| SigNoz OTel Collector（gRPC）  | 4317       | 4317     | OTel gRPC 接收                |
+| SigNoz OTel Collector（HTTP）  | 4318       | 4318     | OTel HTTP 接收（日志上报）    |
+| SigNoz ClickHouse              | —          | —        | SigNoz 专用存储               |
+| SigNoz ZooKeeper               | —          | —        | ClickHouse 协调               |
+
+### 应用服务（Docker app profile，`--profile app`）
+
+| 服务             | 宿主机端口 | 说明                  |
+| ---------------- | ---------- | --------------------- |
+| Server           | 3100       | NestJS 后端（容器化） |
+| Client           | 80         | Angular 前端（Nginx） |
+| GlitchTip Web    | 8000       | 错误追踪控制台        |
+| GlitchTip Worker | —          | 异步错误处理          |
+
+### 本地开发
+
+| 服务                | 端口（URL）   | 启动方式           |
+| ------------------- | ------------- | ------------------ |
+| Backend（NestJS）   | 3100          | `make dev`         |
+| Frontend（Angular） | 4300          | `make dev`         |
+| Swagger 文档        | 3100/api/docs | 后端启动后自动可用 |
+| Prisma Studio       | 5555          | `make open-db`     |
+
+### 端口速查
+
+| 端口 | 服务           | 用途                 |
+| ---- | -------------- | -------------------- |
+| 80   | Client         | Nginx 前端（容器化） |
+| 3001 | Langfuse       | LLM 追踪平台         |
+| 3002 | SigNoz         | 日志聚合平台         |
+| 3100 | Backend        | NestJS 后端          |
+| 4300 | Frontend       | Angular 前端（开发） |
+| 4317 | OTel Collector | gRPC 接收            |
+| 4318 | OTel Collector | HTTP 接收（日志）    |
+| 5432 | PostgreSQL     | 主数据库             |
+| 5555 | Prisma Studio  | 数据浏览器           |
+| 6379 | Redis          | 缓存                 |
+| 8000 | GlitchTip      | 错误追踪控制台       |
+| 8123 | ClickHouse     | Langfuse 存储 HTTP   |
+| 9000 | ClickHouse     | Langfuse 存储 Native |
+| 9100 | MinIO API      | 对象存储 API         |
+| 9101 | MinIO Console  | 对象存储管理         |
 
 ---
 

@@ -1,0 +1,136 @@
+<!doctype html>
+<html>
+  <head>
+    <link rel="stylesheet" href="base.css" />
+    <style>
+      .arch .row .lb {
+        width: 85pt;
+        min-width: 85pt;
+      }
+      .arch .row.l1 {
+        background: var(--teal-50);
+      }
+      .arch .row.l3 {
+        background: var(--accent-50);
+      }
+      .arch .row {
+        padding: 2pt 6pt;
+        gap: 3pt;
+      }
+      .arch-cv {
+        line-height: 0.5;
+      }
+      .pg {
+        gap: 3pt;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="eyebrow">架构</div>
+    <h2>系统架构设计 <span class="sub">五层分层 + 四个设计决策</span></h2>
+
+    <div class="arch">
+      <div class="row l0">
+        <span class="lb">Frontend</span>
+        <div class="r">
+          <span class="m">💬 聊天 UI<span class="ms">SSE 流式渲染</span></span>
+          <span class="m">📂 项目管理<span class="ms">多项目切换</span></span>
+          <span class="m">📋 资产查看<span class="ms">PRD / 报告</span></span>
+          <span class="m">⚙️ 后台管理<span class="ms">评估/配置</span></span>
+        </div>
+      </div>
+      <div class="arch-cv">▾</div>
+      <div class="row l1">
+        <span class="lb">Oceanus Orchestrator</span>
+        <div class="r">
+          <span class="m">Session 管理<span class="ms">生命周期</span></span>
+          <span class="m">SSE Bridge<span class="ms">事件流直通</span></span>
+          <span class="m">🔌 MCP 连接<span class="ms">外部服务接入</span></span>
+          <span class="m">Asset 提取<span class="ms">产出结构化</span></span>
+          <span class="m">Cost 追踪<span class="ms">成本记录</span></span>
+        </div>
+      </div>
+      <div class="arch-cv">▾</div>
+      <div class="row l2">
+        <span class="lb">Claude Agent SDK</span>
+        <div class="r">
+          <span class="m">🔄 Agent 循环<span class="ms">tool_use loop</span></span>
+          <span class="m">📜 Skills 消费<span class="ms">SKILL.md 加载</span></span>
+          <span class="m">🧠 Context 构建<span class="ms">上下文组装</span></span>
+          <span class="m">🔀 Model Router<span class="ms">模型选择</span></span>
+          <span class="m">⚡ 流事件<span class="ms">stream 输出</span></span>
+        </div>
+      </div>
+      <div class="arch-cv">▾</div>
+      <div class="row l3">
+        <span class="lb">Skill Layer</span>
+        <div class="r" style="align-items: center">
+          <span
+            style="
+              display: inline-flex;
+              align-items: center;
+              gap: 2pt;
+              padding: 2pt 5pt 2pt 3pt;
+              border-radius: 5pt;
+              background: var(--accent-50);
+              border: 1px solid var(--accent-200);
+            "
+          >
+            <span style="font-size: 7pt; font-weight: 700; color: var(--accent-500); padding: 0 2pt">DeepStorm</span>
+            <span class="m">📄 tide-*<span class="ms">讨论→PRD→任务</span></span>
+            <span class="m">🪸 reef-*<span class="ms">提交/PR/审查</span></span>
+            <span class="m">🧹 sweep-*<span class="ms">测试/覆盖率</span></span>
+          </span>
+          <span class="m">➕ 自定义 Skill<span class="ms">业务自建</span></span>
+        </div>
+      </div>
+      <div class="arch-cv">▾</div>
+      <div class="row l4">
+        <span class="lb">Infrastructure</span>
+        <div class="r">
+          <span class="m">🐘 PostgreSQL</span>
+          <span class="m">📊 Langfuse</span>
+          <span class="m">📝 日志系统</span>
+          <span class="m">📁 文件存储</span>
+        </div>
+      </div>
+    </div>
+
+    <hr class="sd" />
+
+    <h3>四个设计决策</h3>
+    <div class="pg">
+      <div class="pc">
+        <div class="n">1</div>
+        <div class="b">
+          <h4>选用成熟 Harness SDK</h4>
+          <p>Harness Agent 是独立技术领域，不自研。Agent 循环、工具调用、上下文管理由 Claude Agent SDK 承载。</p>
+        </div>
+      </div>
+      <div class="pc">
+        <div class="n">2</div>
+        <div class="b">
+          <h4>Skill 承载业务能力</h4>
+          <p>
+            业务能力不硬编码，而是沉淀为可复用的 Skill 文档。DeepStorm 提供基础 Skill 体系，用户基于其上构建自定义
+            Skill。
+          </p>
+        </div>
+      </div>
+      <div class="pc">
+        <div class="n">3</div>
+        <div class="b">
+          <h4>标准协议集成</h4>
+          <p>外部能力通过 MCP 接入，流式事件通过 SSE 传输。</p>
+        </div>
+      </div>
+      <div class="pc">
+        <div class="n">4</div>
+        <div class="b">
+          <h4>平台沉淀组织资产</h4>
+          <p>文档、代码、Skill 等产研产出均在平台上创建和维护，作为组织级资产持续积累。</p>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

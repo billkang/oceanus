@@ -246,19 +246,21 @@ services:
 
   # ── SigNoz（日志聚合）─────────────────────────────────────────
   signoz:
-    image: signoz/signoz:0.113.0
+    image: signoz/signoz:latest
     container_name: oceanus-signoz
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "3002:8080"
     depends_on:
       signoz-clickhouse:
         condition: service_healthy
     environment:
       SIGNOZ_CLICKHOUSE_DSN: tcp://signoz-clickhouse:9000
+    volumes:
+      - signoz_data:/var/lib/signoz
 
   signoz-otel-collector:
-    image: signoz/otel-collector:0.113.0
+    image: signoz/signoz-otel-collector:latest
     container_name: oceanus-signoz-otel-collector
     restart: unless-stopped
     ports:
@@ -291,13 +293,12 @@ services:
       start_period: 30s
     volumes:
       - signoz_clickhouse_data:/var/lib/clickhouse
+      - ./infra/signoz-clickhouse/users.d:/etc/clickhouse-server/users.d
 
   signoz-zookeeper:
-    image: bitnami/zookeeper:3.9
+    image: zookeeper:3.9
     container_name: oceanus-signoz-zookeeper
     restart: unless-stopped
-    environment:
-      ALLOW_ANONYMOUS_LOGIN: "yes"
 
 volumes:
   postgres_data:
@@ -305,3 +306,4 @@ volumes:
   clickhouse_data:
   minio_data:
   signoz_clickhouse_data:
+  signoz_data:

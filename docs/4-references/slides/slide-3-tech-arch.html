@@ -1,0 +1,71 @@
+<!doctype html>
+<html>
+  <head>
+    <link rel="stylesheet" href="base.css" />
+    <style>
+      .compare .col.pick h4 {
+        color: var(--accent-600);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="eyebrow">引擎选型</div>
+    <h2>技术架构的底层逻辑 <span class="sub">Harness Agent vs LangGraph — 两条路线的本质区别</span></h2>
+
+    <div class="compare">
+      <div class="col pick">
+        <h4>🔄 Harness Agent <span class="tag tag-g" style="margin-left: auto">✅ 选择</span></h4>
+        <ul>
+          <li><span class="ck">✅</span> Harness Agent <strong>运行时自主决策</strong>，流程不写死</li>
+          <li><span class="ck">✅</span> Skills 是<strong>行为指令文档</strong>，动态加载按需消费</li>
+          <li><span class="ck">✅</span> 每个任务独立的 agent 循环：<strong>思考→调工具→观察→再思考</strong></li>
+          <li><span class="ck">✅</span> 适合需求讨论、问题诊断等<strong>流程不确定的开放型任务</strong></li>
+          <li><span class="ck">✅</span> 代表：<strong>Claude Agent SDK</strong></li>
+        </ul>
+      </div>
+      <div class="col">
+        <h4>📋 LangGraph / Pipeline</h4>
+        <ul>
+          <li><span class="cr">✗</span> 流程编码时<strong>固化为 DAG</strong>，A→B→C→D 不变</li>
+          <li><span class="cr">✗</span> 工具是<strong>原子函数</strong>，需手动定义 schema 注册</li>
+          <li><span class="cr">✗</span> 任务是<strong>流水线</strong>：走到哪步预先确定</li>
+          <li><span class="cr">✗</span> 适合数据清洗、文档批处理等<strong>流程确定的任务</strong></li>
+          <li><span class="cr">✗</span> 代表：LangChain LangGraph</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="cards cards-3" style="margin-top: 3pt">
+      <div class="card">
+        <h4>❓ 需求讨论可规范化但不可固化</h4>
+        <p>
+          讨论流程可沉淀为标准化
+          Skill，但<strong>对话走向——问什么、怎么答、往哪追问——充满不确定性</strong>。只有自主规划的 Harness Agent
+          才能驾驭。
+        </p>
+      </div>
+      <div class="card">
+        <h4>📜 Skills 是核心资产</h4>
+        <p>Skill 是<strong>行为指令文档</strong>而非代码。只有 Harness Agent 的设计能原生消费这种指令。</p>
+      </div>
+      <div class="card">
+        <h4>🧵 多视角讨论是动态的</h4>
+        <p>Skill 会抽象出不同角色，从各自视角思考和碰撞。</p>
+      </div>
+    </div>
+
+    <hr class="sd" />
+
+    <h3>选择已有的技术方案</h3>
+    <div class="hl">
+      <p>
+        我们是<strong>业务团队</strong>，核心价值在于理解业务场景、沉淀业务 Skill。<br />
+        Claude Agent SDK 已处理好——<strong>tool_use 循环</strong>、<strong>流式事件</strong>、<strong>MCP 协议</strong
+        >、<strong>上下文管理</strong>、<strong>权限控制</strong>、<strong>Session 管理</strong>——这些是
+        <strong>引擎通用能力</strong>，<strong style="color: var(--gold-600)">Skill 才是我们的关键和成果</strong
+        >。<br />
+        站在成熟 SDK 之上聚焦业务，而非从零搭基础设施。
+      </p>
+    </div>
+  </body>
+</html>

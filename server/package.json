@@ -1,6 +1,9 @@
 {
   "name": "@oceanus/server",
   "description": "",
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "private": true,
   "scripts": {
     "build": "nest build",
@@ -55,7 +58,7 @@
     "@types/bcryptjs": "^3.0.0",
     "@types/express": "^5.0.0",
     "@types/ioredis": "^5.0.0",
-    "@types/node": "^22.0.0",
+    "@types/node": "^24.0.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
     "@vitest/coverage-v8": "^4.1.10",

@@ -3,23 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@11.17.0",
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "description": "Oceanus MVP — AI-powered PM需求讨论平台",
   "scripts": {
-    "dev": "pnpm --filter @oceanus/server start:dev & pnpm --filter @oceanus/client start",
-    "build:server": "pnpm --filter @oceanus/server build",
-    "build:client": "cd client && npx ng build",
-    "lint": "pnpm --filter @oceanus/server lint && pnpm --filter @oceanus/client lint",
-    "format": "prettier --check \"**/*.{ts,js,json,css,html}\"",
-    "format:fix": "prettier --write \"**/*.{ts,js,json,css,html}\"",
-    "test": "pnpm --filter @oceanus/server test",
-    "prepare": "husky",
-    "db:studio": "pnpm --filter @oceanus/server exec prisma studio",
-    "langfuse": "open http://localhost:3001",
-    "db:generate": "pnpm --filter @oceanus/server exec prisma generate",
-    "db:migrate": "pnpm --filter @oceanus/server exec prisma migrate dev",
-    "db:seed": "pnpm --filter @oceanus/server exec prisma db seed",
-    "db:reset": "pnpm --filter @oceanus/server exec prisma migrate reset",
-    "setup": "pnpm install && pnpm db:generate && pnpm db:migrate"
+    "prepare": "husky"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.1",

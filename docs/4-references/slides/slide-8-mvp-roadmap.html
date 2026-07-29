@@ -1,0 +1,140 @@
+<!doctype html>
+<html>
+  <head>
+    <link rel="stylesheet" href="base.css" />
+    <style>
+      .phase-box {
+        display: flex;
+        align-items: center;
+        gap: 8pt;
+        padding: 5pt 8pt;
+        border-radius: 8pt;
+        background: var(--surface);
+        border: 1px solid var(--text-10);
+        margin: 3pt 0;
+      }
+      .phase-label {
+        font-size: 8pt;
+        font-weight: 700;
+        padding: 2pt 8pt;
+        border-radius: 5pt;
+        text-align: center;
+        min-width: 50pt;
+        flex-shrink: 0;
+      }
+      .phase-label.p1 {
+        background: var(--accent-100);
+        color: var(--accent-600);
+      }
+      .phase-label.p2 {
+        background: var(--green-100);
+        color: var(--green-600);
+      }
+      .phase-label.p3 {
+        background: #f5f3ff;
+        color: #7c3aed;
+      }
+      .phase-desc {
+        font-size: 8.5pt;
+        color: var(--text-60);
+      }
+    </style>
+    <style>
+      .phase-box {
+        padding: 4pt 8pt;
+        gap: 6pt;
+        margin: 2pt 0;
+      }
+      .phase-desc {
+        font-size: 8pt;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="eyebrow">规划</div>
+    <h2 style="margin-bottom: 3pt">MVP 范围与路线图 <span class="sub">做什么、不做什么、为什么</span></h2>
+
+    <div class="tc" style="gap: 5pt">
+      <div>
+        <h3>MVP 包含</h3>
+        <table class="dt">
+          <tr>
+            <td>Skill 管理</td>
+            <td><span class="tag tag-g">内置 DeepStorm</span></td>
+          </tr>
+          <tr>
+            <td>项目管理</td>
+            <td><span class="tag tag-g">cwd 隔离</span></td>
+          </tr>
+          <tr>
+            <td>对话/会话</td>
+            <td><span class="tag tag-g">DB 存储 + SSE</span></td>
+          </tr>
+          <tr>
+            <td>文档生成</td>
+            <td><span class="tag tag-g">PRD / 诊断报告</span></td>
+          </tr>
+          <tr>
+            <td>可观测</td>
+            <td><span class="tag tag-g">Langfuse + Cost</span></td>
+          </tr>
+          <tr>
+            <td>质量评估</td>
+            <td><span class="tag tag-g">LLM-as-Judge</span></td>
+          </tr>
+          <tr>
+            <td>用户系统</td>
+            <td><span class="tag tag-a">静态 admin 登录</span></td>
+          </tr>
+        </table>
+      </div>
+      <div>
+        <h3>后续 Phase</h3>
+        <table class="dt">
+          <tr>
+            <td>自定义 Skill</td>
+            <td><span class="tag tag-a">Phase 3</span></td>
+          </tr>
+          <tr>
+            <td>MCP 服务对接</td>
+            <td><span class="tag tag-a">Phase 3</span></td>
+          </tr>
+          <tr>
+            <td>Skill 市场</td>
+            <td><span class="tag tag-r">远期</span></td>
+          </tr>
+          <tr>
+            <td>多角色工作流</td>
+            <td><span class="tag tag-r">远期</span></td>
+          </tr>
+          <tr>
+            <td>自动评估</td>
+            <td><span class="tag tag-r">远期</span></td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <h3 style="margin-top: 2pt; margin-bottom: 3pt">开发阶段</h3>
+    <div class="phase-box" style="padding: 3pt 8pt">
+      <span class="phase-label p1">Phase 1</span>
+      <span class="phase-desc">平台搭建 — 脚手架 + Session/Chat API + SDK 集成 + 项目对话闭环</span>
+    </div>
+    <div class="phase-box" style="padding: 3pt 8pt">
+      <span class="phase-label p2">Phase 2</span>
+      <span class="phase-desc">体验完善 — SSE 流式 + 前端聊天 UI + DeepStorm Skill 集成 + 资产提取</span>
+    </div>
+    <div class="phase-box" style="padding: 3pt 8pt">
+      <span class="phase-label p3">Phase 3</span>
+      <span class="phase-desc">生态扩展 — 自定义 Skill + MCP 对接 + Langfuse 可观测 + LLM-as-Judge 评估</span>
+    </div>
+
+    <div class="hl" style="margin-top: 2pt; padding: 3pt 8pt">
+      <p style="font-size: 9pt">
+        <strong>MVP 原则：</strong>核心链路（对话 → Agent → 产出 →
+        持久化）必须完整可运行。辅助能力框架到位不追求完美。<br />
+        <strong style="color: var(--gold-600)">自定义 Skill 和 MCP 是平台从"工具"变成"平台"的关键。</strong>
+      </p>
+    </div>
+  </body>
+</html>

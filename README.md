@@ -45,7 +45,7 @@ oceanus/
 │   ├── src/         # auth, project, session, chat, agent, asset, common
 │   └── prisma/      # schema.prisma + seed.ts
 ├── docs/            # 文档（见 docs/INDEX.md）
-├── infra/           # Loki, Promtail, Grafana 配置
+├── infra/           # OTel Collector 配置
 ├── openspec/        # 规范与 Spec 文档
 ├── docker-compose.yml
 ├── Makefile
@@ -72,23 +72,23 @@ make help         # 全部可用命令
 
 ## 技术栈
 
-| 领域     | 选型                                |
-| -------- | ----------------------------------- |
-| 前端     | Angular 21 + PrimeNG + Tailwind CSS |
-| 后端     | NestJS 11                           |
-| 数据库   | PostgreSQL 17 + Prisma 6            |
-| AI 引擎  | Claude Agent SDK（TypeScript）      |
-| 可观测性 | Langfuse（可选）+ Grafana + Loki    |
+| 领域     | 选型                                                                    |
+| -------- | ----------------------------------------------------------------------- |
+| 前端     | Angular 21 + PrimeNG + Tailwind CSS                                     |
+| 后端     | NestJS 11                                                               |
+| 数据库   | PostgreSQL 17 + Prisma 6                                                |
+| AI 引擎  | Claude Agent SDK（TypeScript）                                          |
+| 可观测性 | Langfuse（LLM 链路）+ GlitchTip（错误追踪，可选）+ SigNoz（日志 / APM） |
 
 ---
 
 ## 文档指引
 
-| 入口                                              | 内容                                              |
-| ------------------------------------------------- | ------------------------------------------------- |
-| [文档首页](docs/INDEX.md)                         | 按角色分类的文档索引                              |
-| [环境配置](docs/1-getting-started/environment.md) | Docker 服务、环境变量、Langfuse/GlitchTip/Grafana |
-| [架构总览](docs/2-architecture/overview.md)       | 模块、分层、数据流                                |
-| [ADR 索引](docs/2-architecture/decisions/)        | 架构决策记录                                      |
-| [API 参考](docs/3-api/api-reference.md)           | REST API + SSE 事件                               |
-| [贡献指南](docs/6-contributing/CONTRIBUTING.md)   | 代码规范、PR 流程                                 |
+| 入口                                              | 内容                                             |
+| ------------------------------------------------- | ------------------------------------------------ |
+| [文档首页](docs/INDEX.md)                         | 按角色分类的文档索引                             |
+| [环境配置](docs/1-getting-started/environment.md) | Docker 服务、环境变量、Langfuse/GlitchTip/SigNoz |
+| [架构总览](docs/2-architecture/overview.md)       | 模块、分层、数据流                               |
+| [ADR 索引](docs/2-architecture/decisions/)        | 架构决策记录                                     |
+| [API 参考](docs/3-api/api-reference.md)           | REST API + SSE 事件                              |
+| [贡献指南](docs/6-contributing/CONTRIBUTING.md)   | 代码规范、PR 流程                                |
