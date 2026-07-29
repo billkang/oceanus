@@ -6,7 +6,7 @@
 
 - 使用官方 Docker 镜像 `signoz/signoz`
 - 部署组件：
-  - **SigNoz**（单二进制：UI + API + Alertmanager），端口 `8080`
+  - **SigNoz**（单二进制：UI + API + Alertmanager），端口 `3002`
   - **OTel Collector**（数据采集），端口 `4317`（gRPC）、`4318`（HTTP）
   - **ClickHouse**（可观测性数据存储），端口 `9000`（TCP）、`8123`（HTTP）
   - **ZooKeeper**（ClickHouse 协调），端口 `2181`
@@ -17,7 +17,7 @@
 
 - **WHEN** 执行 `docker compose up -d`
 - **THEN** SigNoz 各项服务 SHALL 在 2 分钟内通过健康检查
-- **AND** 访问 `http://localhost:8080` SHALL 展示 SigNoz UI 登录/首页
+- **AND** 访问 `http://localhost:3002` SHALL 展示 SigNoz UI 登录/首页
 
 #### Scenario: SigNoz 接收日志并展示
 

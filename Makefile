@@ -1,18 +1,15 @@
 # ─── Oceanus Makefile ─────────────────────────────────────────────
-# Makefile 管基础设施和编排；开发命令委托给 pnpm scripts。
+# 统一入口：Docker、环境文件、Prisma、日志、快捷打开等全部通过 make。
+# 子项目命令（server / client）通过 pnpm workspace 委派。
 #
-# 全部命令在项目根目录执行即可。用法：
-#   make help              显示本帮助
-#
-# 设计原则：
-#   Makefile → Docker、环境文件、初始化、日志等编排
-#   pnpm    → dev、build、test 等开发命令（复用 pnpm workspace）
+# 用法：make help
 
 .PHONY: install setup \
         db-up db-up-min db-down db-status db-setup db-studio db-generate db-seed db-migrate db-reset db-logs \
         dev server server-dev server-build server-lint server-test \
         client client-dev client-build client-lint client-test \
-        test lint format typecheck type-check logs langfuse clean help
+        test lint format typecheck type-check logs logs-tail clean \
+        langfuse open-server open-client open-swagger open-db help open-signoz
 
 # ─── 首次安装 ─────────────────────────────────────────────────────
 
@@ -56,28 +53,28 @@ db-logs:           ## 查看 Docker 服务日志
 
 db-setup:          ## 运行迁移 + 生成 Client + 种子数据
 	cd server && npx prisma migrate dev --name init 2>/dev/null; \
-		pnpm db:generate && \
-		pnpm db:seed
+		cd server && npx prisma generate && \
+		cd server && npx prisma db seed
 	@echo "✅ 数据库初始化完成"
 
 db-migrate:        ## 创建新迁移（用法: make db-migrate name=xxx）
 	cd server && npx prisma migrate dev --name $(name)
 
 db-generate:       ## 生成 Prisma Client
-	pnpm db:generate
+	cd server && npx prisma generate
 
 db-seed:           ## 填充种子数据
-	pnpm db:seed
+	cd server && npx prisma db seed
 
 db-studio:         ## 打开 Prisma Studio 数据浏览器
-	pnpm db:studio
+	cd server && npx prisma studio
 
 db-reset:          ## 重置数据库（清空数据，重新迁移+种子）
-	pnpm db:reset
+	cd server && npx prisma migrate reset
 
 # ─── 开发服务 ─────────────────────────────────────────────────────
 
-dev:               ## 启动后端 + 前端（先杀掉旧进程，Ctrl+C 停止全部）
+dev: db-generate    ## 启动后端 + 前端（先杀掉旧进程，Ctrl+C 停止全部）
 	@echo "🔪 清理旧进程..."
 	@lsof -ti :3100 | xargs kill -9 2>/dev/null || true
 	@lsof -ti :4300 | xargs kill -9 2>/dev/null || true
@@ -85,11 +82,11 @@ dev:               ## 启动后端 + 前端（先杀掉旧进程，Ctrl+C 停止
 	@echo "   后端 → http://localhost:3100"
 	@echo "   前端 → http://localhost:4300"
 	@echo "   Swagger → http://localhost:3100/api/docs"
-	pnpm dev
+	cd server && pnpm start:dev & cd client && pnpm start
 
 server: server-dev ## 启动后端（默认 = dev 模式）
 
-server-dev:        ## 单独启动后端（热重载）
+server-dev: db-generate ## 单独启动后端（热重载，自动确保 Prisma Client 最新）
 	cd server && pnpm start:dev
 
 server-build:      ## 构建后端
@@ -127,26 +124,60 @@ lint:              ## 运行全部代码检查
 	cd client && pnpm lint
 
 format:            ## 自动格式化全部代码
-	pnpm format:fix
+	pnpm exec prettier --write "**/*.{ts,js,json,css,html}"
 
 typecheck: type-check
 type-check:        ## TypeScript 类型检查（后端）
 	cd server && npx tsc --noEmit
 
-logs:              ## 查看后端日志
-	@if [ -f server/logs/combined.log ]; then \
-		tail -f server/logs/combined.log | pino-pretty --translateTime "HH:MM:ss"; \
+# ─── 日志 ──────────────────────────────────────────────────────────
+
+logs:              ## 查看最新会话日志（需先启动后端，使用 pino-pretty 格式化）
+	@SESSION_LOG=$$(ls -t server/logs/default/*.log 2>/dev/null | head -1); \
+	if [ -n "$$SESSION_LOG" ]; then \
+		echo "📄  $$SESSION_LOG"; \
+		echo "────────────────────────────────────────"; \
+		pnpm --filter @oceanus/server exec pino-pretty < "$$SESSION_LOG" --translateTime "HH:MM:ss" 2>/dev/null; \
 	else \
-		echo "ℹ️  日志文件不存在，启动后端后自动创建"; \
+		echo "ℹ️  暂无会话日志，启动后端后自动生成"; \
 	fi
+
+logs-tail:         ## 实时跟踪最新会话日志（类似 tail -f）
+	@SESSION_LOG=$$(ls -t server/logs/default/*.log 2>/dev/null | head -1); \
+	if [ -n "$$SESSION_LOG" ]; then \
+		echo "📄  跟踪 $$SESSION_LOG (Ctrl+C 退出)"; \
+		tail -f "$$SESSION_LOG" | pnpm --filter @oceanus/server exec pino-pretty --translateTime "HH:MM:ss"; \
+	else \
+		echo "ℹ️  暂无会话日志，启动后端后自动生成"; \
+	fi
+
+# ─── 快捷打开 URL ────────────────────────────────────────────────
+
+langfuse:          ## 打开 Langfuse 可观测平台
+	open http://localhost:3001
+
+open-server:       ## 在浏览器打开后端
+	open http://localhost:3100
+
+open-client:       ## 在浏览器打开前端
+	open http://localhost:4300
+
+open-swagger:      ## 在浏览器打开 Swagger API 文档
+	open http://localhost:3100/api/docs
+
+open-db: db-studio ## 打开 Prisma Studio 数据浏览器（先启动服务）
+	@echo "✅ Prisma Studio 已启动，浏览器自动打开..."
+	open http://localhost:5555
+
+open-signoz:       ## 在浏览器打开 SigNoz 日志平台
+	open http://localhost:3002
+
+# ─── 维护 ──────────────────────────────────────────────────────────
 
 clean:             ## 清理 node_modules 和构建产物
 	rm -rf node_modules server/node_modules server/dist server/logs \
 		client/node_modules client/dist
 	@echo "✅ 已清理 node_modules、dist、logs"
-
-langfuse:          ## 打开 Langfuse 可观测平台
-	pnpm langfuse
 
 # ─── 帮助 ─────────────────────────────────────────────────────────
 
@@ -159,23 +190,31 @@ help:              ## 显示本帮助
 	@echo ""
 	@echo "日常开发:"
 	@echo "  make dev          启动后端 + 前端"
-	@echo "  make db-up-min    只需 PostgreSQL 时"
-	@echo "  make db-up        需要 Langfuse 时（含 Redis + ClickHouse + MinIO）"
 	@echo "  make server-dev   单独启动后端"
 	@echo "  make client-dev   单独启动前端"
-	@echo "  make test         运行后端测试"
+	@echo "  make test         运行测试"
 	@echo ""
 	@echo "数据库:"
-	@echo "  make db-studio             打开 Prisma Studio 数据浏览器"
-	@echo "  make db-generate           生成 Prisma Client"
-	@echo "  make db-migrate name=xxx   创建新迁移"
-	@echo "  make db-setup              迁移 + 种子"
-	@echo "  make db-seed               填充种子数据"
-	@echo "  make db-reset              重置数据库"
+	@echo "  make db-up         启动全部基础设施"
+	@echo "  make db-up-min     仅启动 PostgreSQL"
+	@echo "  make db-down       停止所有 Docker 服务"
+	@echo "  make db-studio     打开 Prisma Studio"
+	@echo "  make db-generate   生成 Prisma Client"
+	@echo "  make db-migrate    创建新迁移"
+	@echo "  make db-seed       填充种子数据"
 	@echo ""
-	@echo "平台:"
-	@echo "  make langfuse              打开 Langfuse 可观测平台"
-	@echo "                               → http://localhost:3001"
+	@echo "日志:"
+	@echo "  make logs          查看最新会话日志"
+	@echo "  make logs-tail     实时跟踪会话日志"
+	@echo "  make db-logs       查看 Docker 日志"
+	@echo ""
+	@echo "快捷打开:"
+	@echo "  make open-server   http://localhost:3100"
+	@echo "  make open-client   http://localhost:4300"
+	@echo "  make open-swagger  http://localhost:3100/api/docs"
+	@echo "  make open-db       Prisma Studio（数据库管理）"
+	@echo "  make open-signoz   http://localhost:3002"
+	@echo "  make langfuse      http://localhost:3001"
 	@echo ""
 	@echo "代码质量:"
 	@echo "  make lint         代码检查"

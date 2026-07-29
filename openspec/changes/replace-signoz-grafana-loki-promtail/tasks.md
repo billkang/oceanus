@@ -4,7 +4,7 @@
 - [ ] 1.2 复制 SigNoz 官方 OTel Collector 配置到 `infra/otel-collector-config.yaml`
 - [ ] 1.3 从 `docker-compose.yml` 移除 Grafana、Loki、Promtail 容器定义
 - [ ] 1.4 移除 Loki/Grafana 的数据卷声明（`loki_data`、`grafana_data`）
-- [ ] 1.5 执行 `docker compose up -d` 验证 SigNoz 启动，访问 `http://localhost:8080`
+- [ ] 1.5 执行 `docker compose up -d` 验证 SigNoz 启动，访问 `http://localhost:3002`
 
 ## 2. OTel 日志接入（后端）
 

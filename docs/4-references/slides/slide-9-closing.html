@@ -1,0 +1,89 @@
+<!doctype html>
+<html>
+  <head>
+    <link rel="stylesheet" href="base.css" />
+    <style>
+      body {
+        justify-content: center;
+        text-align: center;
+        background:
+          radial-gradient(ellipse 70% 40% at 50% 10%, var(--accent-100) 0%, transparent 60%),
+          radial-gradient(ellipse 40% 30% at 20% 90%, var(--accent-50) 0%, transparent 50%),
+          radial-gradient(ellipse 40% 30% at 80% 90%, var(--teal-50) 0%, transparent 50%), var(--surface);
+      }
+      .badge {
+        display: inline-block;
+        padding: 5pt 18pt;
+        border-radius: 100px;
+        background: var(--accent-50);
+        border: 1px solid var(--accent-100);
+        color: var(--accent-600);
+        font-size: 10pt;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        margin-bottom: 6pt;
+      }
+      .summary-box {
+        max-width: 480pt;
+        margin: 16pt auto 0;
+        padding: 12pt 16pt;
+        border-radius: 12pt;
+        background: var(--surface);
+        border: 1px solid var(--text-10);
+      }
+      .summary-box p {
+        font-size: 9.5pt;
+        color: var(--text-80);
+        line-height: 1.7;
+        margin: 0;
+      }
+      .contact-row {
+        display: flex;
+        justify-content: center;
+        gap: 40pt;
+        margin-top: 12pt;
+      }
+      .contact-item {
+        text-align: center;
+      }
+      .contact-item .lbl {
+        font-size: 8pt;
+        color: var(--text-40);
+        margin-bottom: 2pt;
+      }
+      .contact-item .val {
+        font-size: 10pt;
+        color: var(--text-60);
+      }
+    </style>
+  </head>
+  <body>
+    <h1 style="font-size: 40pt">谢谢</h1>
+    <p style="font-size: 14pt; color: var(--text-40); margin-bottom: 16pt">Q & A</p>
+
+    <div class="badge">🌊 Oceanus — AI 研发中台</div>
+
+    <div class="summary-box">
+      <p>
+        <strong style="color: var(--text)">核心结论回顾：</strong><br />
+        Angular + NestJS 全栈 → Claude Agent SDK 引擎 → Skills 体系 → 内置起步，自定义扩展<br />
+        <span style="color: var(--accent-600)">我们是业务团队，站在成熟方案上做业务，不重复造轮子</span>
+      </p>
+    </div>
+
+    <div class="contact-row">
+      <div class="contact-item">
+        <div class="lbl">项目</div>
+        <div class="val">Oceanus</div>
+      </div>
+      <div class="contact-item">
+        <div class="lbl">团队</div>
+        <div class="val">AI Platform</div>
+      </div>
+      <div class="contact-item">
+        <div class="lbl">状态</div>
+        <div class="val">MVP 开发中</div>
+      </div>
+    </div>
+  </body>
+</html>

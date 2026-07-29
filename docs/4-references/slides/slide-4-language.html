@@ -1,0 +1,123 @@
+<!doctype html>
+<html>
+  <head>
+    <link rel="stylesheet" href="base.css" />
+    <style>
+      .step-indicator {
+        text-align: center;
+        font-size: 7pt;
+        color: var(--text-40);
+        letter-spacing: 0.08em;
+        margin: 1pt 0 4pt;
+      }
+      .lang-card {
+        padding: 6pt 10pt;
+        border-radius: 10pt;
+        background: var(--surface);
+        border: 1px solid var(--text-10);
+      }
+      .lang-card.pick {
+        border: 1.5pt solid var(--accent-400);
+        background: var(--accent-50);
+      }
+      .lang-card h4 {
+        font-size: 11pt;
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 4pt;
+        display: flex;
+        align-items: center;
+        gap: 5pt;
+      }
+      .lang-card p {
+        font-size: 8.5pt;
+        color: var(--text-60);
+        margin-bottom: 3pt;
+      }
+      .lang-card ul {
+        list-style: none;
+      }
+      .lang-card li {
+        padding: 1.5pt 0;
+        font-size: 8pt;
+        color: var(--text-80);
+        display: flex;
+        gap: 4pt;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="eyebrow">语言选型</div>
+    <h2>框架决定语言 <span class="sub">先选引擎 → 引擎定语言</span></h2>
+
+    <div class="hl" style="margin-bottom: 4pt; padding: 3pt 10pt">
+      <p>决策逻辑：<strong>选 Agent 框架</strong> → 框架决定 <strong>语言生态</strong></p>
+    </div>
+
+    <h3 style="margin-bottom: 2pt">① Agent 框架选型</h3>
+    <div class="compare" style="margin: 0 0 2pt">
+      <div class="col pick" style="padding: 4pt 8pt">
+        <h4 style="color: var(--accent-600)">
+          🤖 Claude Agent SDK <span class="tag tag-g" style="float: right">✅ 选择</span>
+        </h4>
+        <ul>
+          <li><span class="ck">✅</span> DeepStorm 原生打通，<strong>改造成本最低</strong></li>
+          <li><span class="ck">✅</span> 能力最完善的 Harness SDK，<strong>原生 MCP</strong></li>
+          <li><span class="ck">✅</span> TS / Python <strong>双语言支持</strong></li>
+          <li><span class="ck">✅</span> 文档完善，社区活跃</li>
+        </ul>
+      </div>
+      <div class="col" style="padding: 4pt 8pt">
+        <h4>⚡ Pi（OpenClaw 核心引擎）</h4>
+        <ul>
+          <li><span style="color: var(--gold-500)">⚡</span> 极简主义，77K+ Stars</li>
+          <li><span style="color: var(--gold-500)">⚡</span> 无 MCP，"Code as Protocol"</li>
+          <li><span style="color: var(--gold-500)">⚡</span> 需技术适配，不兼容 DeepStorm 生态</li>
+          <li><span style="color: var(--gold-500)">⚡</span> 仅 TS，Python 需额外封装</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- ② 语言选型 -->
+
+    <h3 style="margin-bottom: 2pt">② 语言选型</h3>
+    <div class="cards cards-3" style="gap: 3pt; margin: 0">
+      <div class="lang-card pick">
+        <h4>🟦 TypeScript <span class="tag tag-g" style="margin-left: auto">✅ 选择</span></h4>
+        <p>Claude Agent SDK <strong>首选语言</strong></p>
+        <ul>
+          <li><span class="ck">✅</span> 全栈统一，学习成本最低</li>
+          <li><span class="ck">✅</span> 前端 Angular + 后端 NestJS，同一语言栈</li>
+          <li><span class="ck">✅</span> <strong style="color: var(--green-600)">DeepStorm 基类可直接复用</strong></li>
+          <li><span class="ck">✅</span> 零技术调研成本，开箱即用</li>
+        </ul>
+      </div>
+      <div class="lang-card">
+        <h4>☕ Java</h4>
+        <p>公司主力栈，团队<strong>最熟悉</strong></p>
+        <ul>
+          <li><span class="cr">✗</span> Agent 生态较弱</li>
+          <li><span class="cr">✗</span> 需从零调研方案、适配 DeepStorm</li>
+          <li><span class="cr">✗</span> 时间成本高</li>
+        </ul>
+      </div>
+      <div class="lang-card">
+        <h4>🐍 Python</h4>
+        <p>AI 时代<strong>第一语言</strong></p>
+        <ul>
+          <li><span class="ck">✅</span> Claude Agent SDK 也支持 Python</li>
+          <li><span class="cr">✗</span> 公司 Python 工程师较少</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="hl" style="margin-top: 2pt; padding: 3pt 10pt">
+      <p>
+        <strong>最终结论：</strong>不是"TS 比 Java 好"，而是
+        <strong style="color: var(--gold-600)">Agent 框架生态的先决条件</strong>。<br />
+        Claude Agent SDK 原生 TypeScript + DeepStorm 基类可直接复用 →
+        <strong style="color: var(--green-600)">TypeScript 是适配成本最低</strong> 的选择。
+      </p>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,109 @@
+<!doctype html>
+<html>
+  <head>
+    <link rel="stylesheet" href="base.css" />
+    <style>
+      body {
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        background:
+          radial-gradient(ellipse 80% 50% at 50% -8%, var(--accent-100) 0%, transparent 60%),
+          radial-gradient(ellipse 50% 40% at 20% 80%, var(--accent-50) 0%, transparent 50%),
+          radial-gradient(ellipse 50% 40% at 80% 80%, var(--teal-50) 0%, transparent 50%), var(--surface);
+      }
+      .badge {
+        display: inline-block;
+        padding: 5pt 18pt;
+        border-radius: 100px;
+        background: var(--accent-50);
+        border: 1px solid var(--accent-100);
+        color: var(--accent-600);
+        font-size: 11pt;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        margin-bottom: 8pt;
+      }
+      .grad-text {
+        font-size: 36pt;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        background: linear-gradient(135deg, var(--text) 30%, var(--accent-500) 55%, var(--teal-600) 80%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      .value-box {
+        display: flex;
+        gap: 10pt;
+        margin-top: 12pt;
+        justify-content: center;
+        width: 100%;
+      }
+      .value-item {
+        padding: 9pt 8pt;
+        border-radius: 12pt;
+        border: 1px solid var(--text-10);
+        flex: 1;
+        max-width: 260pt;
+      }
+      .value-item .label {
+        font-size: 8pt;
+        color: var(--accent-600);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        font-weight: 700;
+        margin-bottom: 6pt;
+      }
+      .value-item .text {
+        font-size: 10pt;
+        color: var(--text-80);
+        line-height: 1.6;
+      }
+      .value-item:first-child {
+        background: var(--teal-50);
+        border-color: rgba(13, 148, 136, 0.2);
+      }
+      .value-item:last-child {
+        background: var(--accent-50);
+        border-color: rgba(79, 70, 229, 0.15);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="badge">🌊 Oceanus</div>
+    <h1 class="grad-text">AI 研发中台</h1>
+    <p
+      style="
+        font-size: 12pt;
+        color: var(--text-60);
+        margin-top: 8px;
+        max-width: 480pt;
+        margin-left: auto;
+        margin-right: auto;
+      "
+    >
+      不只是工具——把优秀 PM 的思考方式沉淀为可复用工作流
+    </p>
+    <p style="font-size: 10pt; color: var(--text-40); margin-top: 2pt">方法论沉淀 → 线上化 → 组织能力扩散</p>
+
+    <div class="value-box">
+      <div class="value-item">
+        <div class="label">命 名 寓 意</div>
+        <div class="text" style="font-size: 9pt">
+          <strong style="color: var(--teal-600)">俄刻阿诺斯</strong>，古希腊大洋神<br />
+          永不枯竭的巨川<br />
+          <strong style="color: var(--teal-600)">万物之源，万流之宗</strong>
+        </div>
+      </div>
+      <div class="value-item">
+        <div class="label">对 公 司 的 价 值</div>
+        <div class="text" style="font-size: 9pt">
+          所有产品从<strong style="color: var(--accent-600)">同一源头</strong>诞生<br />
+          共享方法论与工作流<br />
+          <strong style="color: var(--accent-600)">持续滋养，生生不息</strong>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

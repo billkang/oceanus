@@ -21,43 +21,45 @@
 
 ### 服务清单
 
-**默认 profile（基础设施）：**
-
-| 服务            | 容器名                    | 端口        | 用途                |
-| --------------- | ------------------------- | ----------- | ------------------- |
-| PostgreSQL      | `oceanus-postgres`        | 5432        | 主数据库            |
-| Redis           | `oceanus-redis`           | 6379        | 缓存                |
-| ClickHouse      | `oceanus-clickhouse`      | 8123 / 9000 | Langfuse 分析型存储 |
-| MinIO           | `oceanus-minio`           | 9100 / 9101 | Langfuse 对象存储   |
-| Langfuse Worker | `oceanus-langfuse-worker` | —           | 异步事件处理器      |
-| Langfuse Web    | `oceanus-langfuse`        | 3001        | LLM 可观测性控制台  |
-
-**app profile（额外应用服务）：**
-
-| 服务          | 端口 | 用途                 |
-| ------------- | ---- | -------------------- |
-| Server        | 3100 | NestJS 后端          |
-| Client        | 80   | Angular 前端 (Nginx) |
-| GlitchTip Web | 8000 | 错误追踪控制台       |
-| SigNoz        | 8080 | 日志聚合与搜索       |
+| 服务                            | 容器名                          | 宿主机端口  | 容器端口 | 用途                       |
+| ------------------------------- | ------------------------------- | ----------- | -------- | -------------------------- |
+| PostgreSQL                      | `oceanus-postgres`              | 5432        | 5432     | 主数据库                   |
+| Redis                           | `oceanus-redis`                 | 6379        | 6379     | 缓存 / Langfuse 队列       |
+| ClickHouse（Langfuse）          | `oceanus-clickhouse`            | 8123 / 9000 | 8123     | Langfuse 分析型存储        |
+| MinIO API                       | `oceanus-minio`                 | 9100        | 9000     | Langfuse 对象存储 API      |
+| MinIO Console                   | `oceanus-minio`                 | 9101        | 9001     | Langfuse 对象存储管理界面  |
+| Langfuse Worker                 | `oceanus-langfuse-worker`       | —           | —        | 异步事件处理器             |
+| Langfuse Web                    | `oceanus-langfuse`              | 3001        | 3000     | LLM 可观测性控制台         |
+| SigNoz UI                       | `oceanus-signoz`                | 3002        | 8080     | 日志聚合与搜索             |
+| OTel Collector（gRPC）          | `oceanus-signoz-otel-collector` | 4317        | 4317     | OTel gRPC 接收             |
+| OTel Collector（HTTP）          | `oceanus-signoz-otel-collector` | 4318        | 4318     | OTel HTTP 接收（日志上报） |
+| SigNoz ClickHouse               | `oceanus-signoz-clickhouse`     | —           | —        | SigNoz 专用存储            |
+| SigNoz ZooKeeper                | `oceanus-signoz-zookeeper`      | —           | —        | ClickHouse 协调            |
+| Server（app profile）           | `oceanus-server`                | 3100        | 3100     | NestJS 后端（容器化）      |
+| Client（app profile）           | `oceanus-client`                | 80          | 80       | Angular 前端（Nginx）      |
+| GlitchTip Web（app profile）    | `oceanus-glitchtip-web`         | 8000        | 8000     | 错误追踪控制台             |
+| GlitchTip Worker（app profile） | `oceanus-glitchtip-worker`      | —           | —        | 异步错误处理               |
 
 ### 日常命令
 
 ```bash
 make db-up-min    # 最小模式（仅 PostgreSQL，日常推荐）
-make db-up        # 完整模式（全部服务）
+make db-up        # 完整模式（全部服务：PG + Redis + ClickHouse + MinIO + Langfuse + SigNoz）
 make db-down      # 停止所有容器
 make db-status    # 查看服务状态
 make db-logs      # 查看所有容器日志
+
+make open-signoz  # 打开 SigNoz（需先 make db-up）
+make langfuse     # 打开 Langfuse（需先 make db-up）
 ```
 
-> **磁盘提示：** ClickHouse 预分配约 2-4 GB。日常推荐 `make db-up-min`。
+> **磁盘提示：** SigNoz + Langfuse 共用两个 ClickHouse 实例，预分配约 4-6 GB。日常开发推荐 `make db-up-min`（仅 PostgreSQL）。需要用可观测性时再 `make db-up`。
 
 ---
 
 ## Langfuse 可观测性
 
-### 前提
+### Langfuse 前提
 
 确认端口 3001 可访问：
 
@@ -83,7 +85,7 @@ LANGFUSE_BASE_URL=http://localhost:3001
 
 ## GlitchTip 错误追踪
 
-### 前提
+### GlitchTip 前提
 
 ```bash
 docker compose --profile app up -d glitchtip-web glitchtip-worker
@@ -114,7 +116,7 @@ glitchtipDsn: 'http://<key>@localhost:8000/<project_id>',
 
 > SigNoz（Apache 2.0）是 Oceanus 的集中日志平台，提供日志搜索、过滤和可视化能力。
 
-### 前提
+### SigNoz 前提
 
 ```bash
 docker compose up -d signoz signoz-otel-collector signoz-clickhouse signoz-zookeeper
@@ -123,7 +125,7 @@ docker compose up -d signoz signoz-otel-collector signoz-clickhouse signoz-zooke
 ### 访问
 
 ```bash
-open http://localhost:8080
+open http://localhost:3002
 ```
 
 SigNoz UI 提供日志搜索与分析功能：

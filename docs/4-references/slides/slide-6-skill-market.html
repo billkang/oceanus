@@ -1,0 +1,150 @@
+<!doctype html>
+<html>
+  <head>
+    <link rel="stylesheet" href="base.css" />
+    <style>
+      .skill-card {
+        padding: 7pt 10pt;
+        border-radius: 10pt;
+        background: var(--surface);
+        border: 1px solid var(--text-10);
+        margin-bottom: 4pt;
+      }
+      .skill-card h4 {
+        font-size: 10.5pt;
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 2pt;
+      }
+      .skill-card p {
+        font-size: 8.5pt;
+        color: var(--text-60);
+        margin: 0;
+        line-height: 1.5;
+      }
+    </style>
+    <style>
+      .compact-h2 {
+        margin-bottom: 3pt;
+      }
+      .compact-h2 .sub {
+        font-size: 10pt;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="eyebrow" style="margin-bottom: 4pt">能力扩展</div>
+    <h2 style="margin-bottom: 3pt">
+      Skill 市场
+      <span class="sub" style="font-size: 10pt"
+        >DeepStorm 内置 Skill（平台提供） + 自定义 Skill（业务沉淀） = Oceanus 持续进化的能力源泉</span
+      >
+    </h2>
+
+    <div
+      style="
+        padding: 4pt 10pt;
+        border-radius: 10pt;
+        background: linear-gradient(135deg, var(--accent-50), var(--teal-50), var(--gold-100));
+        border: 1px solid var(--text-10);
+        margin-bottom: 3pt;
+      "
+    >
+      <p style="font-size: 8.5pt; margin: 0">
+        <strong style="color: var(--accent-600)">DeepStorm</strong> 是 Oceanus 平台内置的 Skill
+        系列——<strong>开箱即用</strong>，覆盖需求讨论、代码提交、PR 审查等全流程。团队在此基础上沉淀<strong
+          >自定义 Skill</strong
+        >，业务经验编码为可复用资产——每一份积累都在滋养整个组织。
+      </p>
+    </div>
+
+    <div class="compare" style="gap: 5pt; margin: 2pt 0">
+      <div class="col pick" style="padding: 4pt 8pt">
+        <h4 style="font-size: 10pt">
+          🌊 DeepStorm 内置 Skill <span class="tag tag-g" style="margin-left: auto">平台提供</span>
+        </h4>
+        <div
+          style="
+            border: 1px solid var(--accent-200);
+            border-radius: 8pt;
+            padding: 2pt;
+            background: rgba(255, 255, 255, 0.5);
+          "
+        >
+          <div
+            style="
+              font-size: 7pt;
+              font-weight: 700;
+              color: var(--accent-500);
+              margin-bottom: 1pt;
+              padding-left: 2pt;
+              letter-spacing: 0.08em;
+            "
+          >
+            DEEPSTORM
+          </div>
+          <div class="skill-card">
+            <h4>📄 tide-*</h4>
+            <p>多角色需求讨论 → PRD 生成 → 任务拆分，覆盖 PM 完整工作流。</p>
+          </div>
+          <div class="skill-card">
+            <h4>🪸 reef-* / sweep-* 系列</h4>
+            <p>11 个 Skill 覆盖提交、PR、代码审查、文档加固、测试用例、E2E 测试。</p>
+          </div>
+        </div>
+      </div>
+      <div class="col" style="padding: 4pt 8pt; border-color: var(--gold-500); background: var(--gold-100)">
+        <h4 style="font-size: 10pt; color: var(--gold-600)">
+          🧩 自定义 Skill <span class="tag tag-a" style="margin-left: auto">团队沉淀</span>
+        </h4>
+        <div class="skill-card">
+          <h4>团队 A：支付业务 Skill</h4>
+          <p>封装支付风控排查流程、对账异常诊断等团队特有的业务经验。</p>
+        </div>
+        <div class="skill-card">
+          <h4>团队 B：运营数据分析 Skill</h4>
+          <p>连接数据仓库 MCP，自动拉取指标、生成分析报告、推送结论到飞书。</p>
+        </div>
+      </div>
+    </div>
+
+    <hr class="sd" style="margin: 3pt 0" />
+
+    <div class="cards cards-3" style="gap: 4pt; margin: 2pt 0">
+      <div class="card" style="border-left: 3px solid var(--accent-500); text-align: center; padding: 5pt 8pt">
+        <h4 style="justify-content: center">
+          📄 Skill
+          <span style="font-weight: 400; font-size: 8pt; color: var(--text-40); margin-left: 2pt">定义做什么</span>
+        </h4>
+        <p style="font-size: 8pt">SKILL.md 描述业务流程，放到项目目录即可被 Agent 识别。</p>
+      </div>
+      <div class="card" style="border-left: 3px solid var(--teal-600); text-align: center; padding: 5pt 8pt">
+        <h4 style="font-size: 11pt; color: var(--teal-600); justify-content: center">
+          🔌 MCP <span style="font-weight: 400; font-size: 8pt; color: var(--text-40); margin-left: 2pt">能调什么</span>
+        </h4>
+        <p style="font-size: 8pt">标准协议对接外部系统：Jira、飞书、数据库、API 等。</p>
+      </div>
+      <div class="card" style="border-left: 3px solid #7c3aed; text-align: center; padding: 5pt 8pt">
+        <h4 style="font-size: 11pt; color: #7c3aed; justify-content: center">
+          🧠 Harness Agent
+          <span style="font-weight: 400; font-size: 8pt; color: var(--text-40); margin-left: 2pt">决定怎么执行</span>
+        </h4>
+        <p style="font-size: 8pt">读取 Skill 指令，自主决策何时调用哪个 MCP 工具。</p>
+      </div>
+    </div>
+
+    <div class="db" style="text-align: center; padding: 3pt 8pt; margin: 2pt 0">
+      <div class="r" style="justify-content: center">
+        <span class="bx a">DeepStorm 内置 Skill</span>
+        <span class="ar">+</span>
+        <span class="bx o">自定义 Skill</span>
+        <span class="ar">+</span>
+        <span class="bx t">MCP</span>
+        <span class="ar">→</span>
+        <span class="bx p">Harness Agent</span>
+        <span class="ar">→</span>
+        <span class="bx g">Oceanus 持续进化的平台能力</span>
+      </div>
+    </div>
+  </body>
+</html>

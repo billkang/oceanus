@@ -1,0 +1,49 @@
+<!doctype html>
+<html>
+  <head>
+    <link rel="stylesheet" href="base.css" />
+  </head>
+  <body>
+    <div class="eyebrow">流程</div>
+    <h2>一次对话的完整流程 <span class="sub">从用户输入到结果展示</span></h2>
+
+    <ol class="flow">
+      <li>
+        <strong>用户发送消息</strong>
+        <div class="sub">Angular → POST /api/v1/chat → Controller</div>
+      </li>
+      <li>
+        <strong>Oceanus 准备执行环境</strong>
+        <div class="sub">SessionManager 加载历史 → 确定项目 cwd → 列出可用 Skill → 配置 MCP Server</div>
+      </li>
+      <li>
+        <strong>SDK.query() 启动 Agent 循环</strong>
+        <div class="sub">传入上下文，SDK 自动完成 Context 组装 + Model 选择，进入 tool_use 循环</div>
+      </li>
+      <li>
+        <strong>Agent 内部循环（SDK 黑盒）</strong>
+        <div class="sub">识别 Skill → 加载 SKILL.md → 按指令执行 → 调工具/MCP → 分析结果 → 继续或完成</div>
+      </li>
+      <li>
+        <strong>SSE Bridge 实时转发</strong>
+        <div class="sub">stream_event → RxJS Subject → SSE Endpoint → 浏览器 EventSource → UI 实时渲染</div>
+      </li>
+      <li>
+        <strong>Agent 返回最终结果</strong>
+        <div class="sub">structured_output + 文件产物 → AssetExtractor 提取资产 → 写入数据库</div>
+      </li>
+      <li>
+        <strong>前端展示完成</strong>
+        <div class="sub">最终回复 + 资产列表 + 本次对话成本</div>
+      </li>
+    </ol>
+
+    <div class="hl">
+      <p>
+        <strong>关键设计：</strong>Oceanus <strong>不介入</strong> Agent
+        的决策循环。平台只在两端做事——启动前准备上下文，执行中监听事件流。<br />
+        <strong style="color: var(--green-600)">SDK 升级完全不影响平台</strong>——这是 SDK 黑盒原则的核心体现。
+      </p>
+    </div>
+  </body>
+</html>

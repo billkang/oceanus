@@ -1,0 +1,161 @@
+<!doctype html>
+<html>
+  <head>
+    <link rel="stylesheet" href="base.css" />
+    <style>
+      .milestone-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 5pt;
+        margin-bottom: 4pt;
+      }
+      .ms-card {
+        padding: 8pt 10pt;
+        border-radius: 10pt;
+        background: var(--surface);
+        border: 1px solid var(--text-10);
+        text-align: center;
+      }
+      .ms-card .icon {
+        font-size: 14pt;
+        margin-bottom: 2pt;
+      }
+      .ms-card .phase {
+        font-size: 7.5pt;
+        font-weight: 700;
+        margin-bottom: 2pt;
+      }
+      .ms-card .desc {
+        font-size: 8pt;
+        color: var(--text-60);
+        line-height: 1.5;
+      }
+      .ms-card.p1 {
+        border-left: 3px solid var(--teal-600);
+      }
+      .ms-card.p1 .phase {
+        color: var(--teal-600);
+      }
+      .ms-card.p2 {
+        border-left: 3px solid var(--accent-500);
+      }
+      .ms-card.p2 .phase {
+        color: var(--accent-600);
+      }
+      .ms-card.p3 {
+        border-left: 3px solid var(--gold-600);
+      }
+      .ms-card.p3 .phase {
+        color: var(--gold-600);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="eyebrow">定位</div>
+    <h2>背景与思路 <span class="sub">工程师经验已沉淀 → 拓展 PM 流程 → Oceanus 线上化平台化</span></h2>
+
+    <!-- 三个阶段 -->
+    <div class="milestone-grid">
+      <div class="ms-card p1">
+        <div class="icon">✅</div>
+        <div class="phase">PHASE 1 — 已完成</div>
+        <div class="desc">DeepStorm 已将软件工程师工作经验总结为 11 个工程化 Skill</div>
+      </div>
+      <div class="ms-card p2">
+        <div class="icon">🏗️</div>
+        <div class="phase">PHASE 2 — 进行中</div>
+        <div class="desc">把产品经理的优秀工作流规范化，编码为 Skill</div>
+      </div>
+      <div class="ms-card p3">
+        <div class="icon">🚀</div>
+        <div class="phase">PHASE 3 — 目标</div>
+        <div class="desc">部署到 Oceanus 平台，实现线上化、零门槛接入</div>
+      </div>
+    </div>
+
+    <!-- 具体要做的事 -->
+    <div class="compare" style="margin: 0 0 3pt">
+      <div class="col pick">
+        <h4>① 沉淀到 DeepStorm</h4>
+        <ul>
+          <li><span class="ck">✅</span> 把<strong>产品经理</strong>的优秀工作流程<strong>规范化</strong></li>
+          <li><span class="ck">✅</span> 将方法论编码为 DeepStorm Skill</li>
+          <li><span class="ck">✅</span> 覆盖需求讨论、方案评估、PRD 撰写全流程</li>
+        </ul>
+      </div>
+      <div class="col" style="border-color: var(--gold-500); background: var(--gold-100)">
+        <h4 style="color: var(--gold-600)">② 部署到 Oceanus</h4>
+        <ul>
+          <li><span class="ck">✅</span> Skill 从<strong>个人电脑</strong>到<strong>公司服务器</strong></li>
+          <li><span class="ck">✅</span> 实现<strong>线上化、平台化</strong>，<strong>零门槛</strong>接入</li>
+          <li><span class="ck">✅</span> 全公司都能用，组织级能力可复用</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- 核心理念 -->
+    <div class="db" style="padding: 6pt 10pt; margin: 4pt 0">
+      <div class="r" style="justify-content: center; gap: 5pt">
+        <span class="bx t" style="padding: 3pt 8pt; font-size: 8.5pt">个人经验</span>
+        <span class="ar">→</span>
+        <span class="bx a" style="padding: 3pt 8pt; font-size: 8.5pt">方法规范化</span>
+        <span class="ar">→</span>
+        <span class="bx p" style="padding: 3pt 8pt; font-size: 8.5pt">Skill 编码</span>
+        <span class="ar">→</span>
+        <span class="bx g" style="padding: 3pt 8pt; font-size: 8.5pt">组织级资产</span>
+      </div>
+    </div>
+
+    <!-- 演进路线 -->
+    <div class="progress-steps" style="padding: 5pt 8pt">
+      <span style="font-size: 7.5pt; font-weight: 600; color: var(--text-40); margin-right: 2pt">演进路线</span>
+      <span
+        class="step-item"
+        style="
+          background: var(--teal-50);
+          border: 1px solid var(--teal-500);
+          color: var(--teal-600);
+          padding: 3pt 7pt;
+          font-size: 7.5pt;
+        "
+        >✅ 工程师 → Skill</span
+      >
+      <span class="step-arrow">→</span>
+      <span
+        class="step-item"
+        style="
+          background: var(--accent-50);
+          border: 1px solid var(--accent-400);
+          color: var(--accent-600);
+          padding: 3pt 7pt;
+          font-size: 7.5pt;
+        "
+        >🏗️ PM → Skill</span
+      >
+      <span class="step-arrow">→</span>
+      <span
+        class="step-item"
+        style="
+          background: var(--gold-100);
+          border: 1px solid var(--gold-500);
+          color: var(--gold-600);
+          padding: 3pt 7pt;
+          font-size: 7.5pt;
+        "
+        >🚀 Oceanus 上线</span
+      >
+      <span class="step-arrow">→</span>
+      <span
+        class="step-item"
+        style="
+          background: var(--green-100);
+          border: 1px solid var(--green-100);
+          color: var(--green-600);
+          padding: 3pt 7pt;
+          font-size: 7.5pt;
+        "
+        >组织级资产</span
+      >
+    </div>
+  </body>
+</html>
