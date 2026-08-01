@@ -8,21 +8,21 @@ Oceanus 后端与 Claude Agent SDK 的集成能力：SDK 初始化与国产模�
 
 ### Requirement: SDK 初始化
 
-后端 SHALL 封装 Claude Agent SDK (TypeScript)，配置国产模型作为 Provider。
+后端 SHALL 封装 Claude Agent SDK (TypeScript)，通过模型注册表选择 Provider。
 
 #### Scenario: SDK 配置加载
 
-- **WHEN** 后端服务启动
-- **THEN** 从环境变量读取 `ANTHROPIC_BASE_URL` / `ANTHROPIC_MODEL` / `ANTHROPIC_SMALL_FAST_MODEL` / `ANTHROPIC_API_KEY`，初始化 Agent SDK 实例
+- **WHEN** 后端服务启动且模型注册表可用
+- **THEN** 从模型注册表读取所选 provider 的 `baseUrl` / `modelId` / `smallFastModel` / Key 来源，配置 Agent SDK 调用
 
 #### Scenario: 国产模型响应
 
 - **WHEN** Agent SDK 发起 AI 调用
-- **THEN** 请求发送到 `ANTHROPIC_BASE_URL` 配置的国产模型 API，而非 Claude 官方 API
+- **THEN** 请求发送到所选 provider 的 `baseUrl` 配置的模型 API，而非 Claude 官方 API
 
-#### Scenario: 环境变量缺失
+#### Scenario: 注册表不可用
 
-- **WHEN** 后端启动时 `ANTHROPIC_API_KEY` 未配置
+- **WHEN** 模型注册表缺失 / 非法 / 无可用 provider
 - **THEN** 服务正常启动，但 Agent 模块返回"AI 服务未配置"错误
 
 ### Requirement: Tide-discuss 加载
@@ -68,7 +68,8 @@ SDK 请求用户确认时，后端 SHALL 通过 SSE 推送选项，前端展示�
 - **WHEN** 后端调用 `SDK.query()`
 - **THEN** SHALL 使用以下配置：
   - `agent: 'oceanus-tide'`
-  - `model: 'claude-sonnet-5'`
+  - `model: <所选 provider 的 modelId>`（由请求 `model` 参数或默认 provider 决定）
+  - `env: { ANTHROPIC_BASE_URL, ANTHROPIC_API_KEY, ANTHROPIC_SMALL_FAST_MODEL }`（provider 级覆盖，逐调用注入）
   - `effort: 'low'`
   - `thinking: { type: 'disabled' }`（禁用思考块以加速响应）
   - `maxTurns: <env AGENT_MAX_TURNS>`（默认 15，最多 15 轮工具调用）
@@ -97,20 +98,20 @@ SDK 请求用户确认时，后端 SHALL 通过 SSE 推送选项，前端展示�
 
 ### Requirement: AiNotConfigured 事件
 
-当 ANTHROPIC_API_KEY 环境变量未配置时，Agent 服务 SHALL 正常启动但所有 AI 功能不可用。
+当模型注册表不可用（缺失 / 非法 / 无可用 provider）时，Agent 服务 SHALL 正常启动但所有 AI 功能不可用。
 
-#### Scenario: API Key 缺失时发送消息
+#### Scenario: 注册表不可用时发送消息
 
-- **WHEN** 前端发送消息但 `ANTHROPIC_API_KEY` 未配置
+- **WHEN** 前端发送消息但模型注册表不可用
 - **THEN** AgentService 抛出 "AI 服务未配置" 错误
 - **THEN** SSE 流中发出 `ai_not_configured` 事件
 - **THEN** 前端可据此展示配置引导
 
 #### Scenario: 服务启动时记录警告
 
-- **WHEN** 后端启动时 `ANTHROPIC_API_KEY` 缺失
+- **WHEN** 后端启动时模型注册表缺失
 - **THEN** 服务正常启动（不崩溃）
-- **THEN** 日志输出 WARN：`ANTHROPIC_API_KEY 未配置，AI 功能不可用`
+- **THEN** 日志输出 WARN：`模型注册表未配置，AI 功能不可用`
 
 ### Requirement: Langfuse Hooks 集成
 
@@ -152,3 +153,46 @@ SDK 可能返回 `prompt_suggestion` 类型的消息，后端 SHALL 将其映射
 - **WHEN** SDK 返回 `msg.type === 'prompt_suggestion'` 且包含 `suggestion` 字段
 - **THEN** 后端映射为 `tool_options` SSE 事件，`options` 数组包含 suggestion 字符串
 - **THEN** 前端以选项按钮形式展示供用户选择
+
+### Requirement: 模型参数透传
+
+后端 SHALL 将请求携带的 `model` 逻辑名从 `POST /chat` 透传到 AgentService，用于选择本次调用的 provider。
+
+#### Scenario: 携带 model 参数
+
+- **WHEN** 请求 `POST /chat` 携带 `action: 'message'` 且 `model: 'kimi'`
+- **THEN** 本次 Agent 调用使用 kimi provider（`modelId` + `baseUrl` + Key）
+
+#### Scenario: 未携带 model 参数
+
+- **WHEN** 请求 `POST /chat` 未携带 `model`
+- **THEN** 本次 Agent 调用使用默认 provider
+
+#### Scenario: 同会话切换模型
+
+- **WHEN** 同一会话（resume）中前后两条消息分别携带 `model: 'deepseek'` 与 `model: 'kimi'`
+- **THEN** 两次调用各自使用对应 provider，resume 照常进行
+
+#### Scenario: confirm 续传携带模型
+
+- **WHEN** 请求 `POST /chat` 携带 `action: 'confirm'` 且 `model: 'kimi'`
+- **THEN** 本次 resume 使用 kimi provider，不漂移到默认 provider
+
+### Requirement: 模型名可观测性
+
+后端 SHALL 在 Langfuse 追踪中记录每次调用使用的 `model` 逻辑名，便于按模型分析 trace。trace 的 model tag 与 generation 的 model 字段均记录该逻辑名，不再依赖已废弃的 `AGENT_MODEL` 环境变量。
+
+#### Scenario: trace 记录模型名
+
+- **WHEN** 一次使用 kimi 的调用产生 Langfuse trace
+- **THEN** trace 中记录 `model: 'kimi'`（逻辑名），generation 的 model 字段同为 `kimi`
+
+#### Scenario: 模型名随 provider 解析
+
+- **WHEN** 调用使用默认 provider（请求未携带 `model`）
+- **THEN** trace 中记录的模型名为默认 provider 的逻辑名
+
+#### Scenario: 未携带 model 时的回退
+
+- **WHEN** 调用不携带 `model` 且无法解析具体 provider
+- **THEN** generation 的 model 字段回退 `'claude'`，且忽略已废弃的 `AGENT_MODEL` 环境变量

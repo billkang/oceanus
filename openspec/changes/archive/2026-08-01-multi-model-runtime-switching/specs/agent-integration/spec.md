@@ -103,14 +103,19 @@
 
 ### Requirement: 模型名可观测性
 
-后端 SHALL 在 Langfuse 追踪中记录每次调用使用的 `model` 逻辑名，便于按模型分析 trace。
+后端 SHALL 在 Langfuse 追踪中记录每次调用使用的 `model` 逻辑名，便于按模型分析 trace。trace 的 model tag 与 generation 的 model 字段均记录该逻辑名，不再依赖已废弃的 `AGENT_MODEL` 环境变量。
 
 #### Scenario: trace 记录模型名
 
 - **WHEN** 一次使用 kimi 的调用产生 Langfuse trace
-- **THEN** trace 中记录 `model: 'kimi'`（逻辑名）
+- **THEN** trace 中记录 `model: 'kimi'`（逻辑名），generation 的 model 字段同为 `kimi`
 
 #### Scenario: 模型名随 provider 解析
 
 - **WHEN** 调用使用默认 provider（请求未携带 `model`）
 - **THEN** trace 中记录的模型名为默认 provider 的逻辑名
+
+#### Scenario: 未携带 model 时的回退
+
+- **WHEN** 调用不携带 `model` 且无法解析具体 provider
+- **THEN** generation 的 model 字段回退 `'claude'`，且忽略已废弃的 `AGENT_MODEL` 环境变量

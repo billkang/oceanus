@@ -1,4 +1,10 @@
-## ADDED Requirements
+# model-registry Specification
+
+## Purpose
+
+TBD - created by archiving change multi-model-runtime-switching. Update Purpose after archive.
+
+## Requirements
 
 ### Requirement: 模型注册表加载
 
@@ -30,30 +36,51 @@
 
 ### Requirement: Key 来源解析
 
-系统 SHALL 根据 provider 的 Key 来源配置解析 API Key：`keyPool: true` 从 `LLM_API_KEY_N` Key 池轮换，否则从 `apiKeyEnv` 指定的环境变量读取。
+系统 SHALL 根据 provider 的 Key 来源配置解析 API Key：`keyPool: true` 从该模型独立命名池轮换（池前缀 = `apiKeyEnv + '_'`，如 deepseek → `DEEPSEEK_API_KEY_1..N`），池空回退 `apiKeyEnv` 单 Key；否则直接读 `apiKeyEnv` 指定的环境变量。每个 model 独立成池，切模型即切池。
 
-#### Scenario: keyPool 默认 provider 轮换
+#### Scenario: keyPool 模型独立池轮换
 
-- **WHEN** 默认 provider 声明 `keyPool: true` 且存在 `LLM_API_KEY_1` / `LLM_API_KEY_2`
-- **THEN** 每次调用经 KeyPool 按 Least-Used 策略选择 Key
+- **WHEN** provider 声明 `keyPool: true` 且该模型命名池存在 Key（`{apiKeyEnv}_1` 等）
+- **THEN** 每次调用从该模型池按 Least-Used 策略选择 Key（切模型即切池，互不影响）
+
+#### Scenario: 池空回退单 Key
+
+- **WHEN** provider 声明 `keyPool: true` 但命名池为空，且 `apiKeyEnv` 单 Key 已配置
+- **THEN** 回退使用 `apiKeyEnv` 的单 Key，不做轮换
 
 #### Scenario: apiKeyEnv 单 Key
 
-- **WHEN** provider 声明 `apiKeyEnv: KIMI_API_KEY` 且该环境变量已配置
+- **WHEN** provider 未声明 `keyPool` 但 `apiKeyEnv` 对应环境变量已配置
 - **THEN** 该 provider 使用该 Key，不做轮换
 
-#### Scenario: apiKeyEnv 缺失
+#### Scenario: Key 来源缺失
 
-- **WHEN** provider 声明的 `apiKeyEnv` 对应环境变量未配置
+- **WHEN** provider 的 Key 来源（`keyPool` 池为空 且 `apiKeyEnv` 缺失）不可解析
 - **THEN** 该 provider 标记为不可用
 - **THEN** 日志输出 WARN 提示 Key 缺失
 - **THEN** `GET /models` 不返回该 provider
 
 #### Scenario: 默认 provider Key 缺失
 
-- **WHEN** 默认 provider 的 Key 来源（`keyPool` 池为空 或 `apiKeyEnv` 缺失）导致其不可用
+- **WHEN** 默认 provider 的 Key 来源（`keyPool` 池为空 且 `apiKeyEnv` 缺失）导致其不可用
 - **THEN** 整个 Agent 功能视为不可用（available=false）
 - **THEN** 发送消息返回 `ai_not_configured`，不静默回退到其他 provider
+
+### Requirement: enabled 开关
+
+系统 SHALL 支持 provider 的 `enabled: false` 完全下线：不出现于模型列表、不可解析，视为不可用。省略时默认启用。
+
+#### Scenario: enabled: false 完全隐藏
+
+- **WHEN** provider 声明 `enabled: false`
+- **THEN** `GET /models` 不返回该模型，前端选择器不可见
+- **THEN** `resolveProvider(该模型)` 返回 400（信息含可用列表）
+- **THEN** 默认 provider 为 `enabled: false` 时整体 AI 不可用（isAvailable=false）
+
+#### Scenario: 省略 enabled 默认启用
+
+- **WHEN** provider 未声明 `enabled`
+- **THEN** 该模型默认可用（按 Key 可用性判定）
 
 ### Requirement: 模型解析与参数校验
 
@@ -66,8 +93,9 @@
 
 #### Scenario: 未知模型拒绝
 
-- **WHEN** 请求携带 `model: 'unknown'` 或已禁用（Key 缺失）的 provider
+- **WHEN** 请求携带 `model: 'unknown'`、已禁用（`enabled: false`）或 Key 缺失的 provider
 - **THEN** 返回 400，错误信息包含可用模型列表
+- **THEN** `__proto__` 等原型键同样返回 400（Object.hasOwn 防原型链绕过）
 
 #### Scenario: 缺省模型
 
