@@ -116,4 +116,71 @@ models:
     mod.load(writeYaml('h.yaml', validYaml));
     await expect(mod.resolveProvider()).rejects.toThrow();
   });
+
+  describe('命名池 / 单 Key 双支持', () => {
+    // deepseek 全局池 + kimi 命名池（keyPool 对象）且同时声明 apiKeyEnv 单 Key 兜底
+    const bothYaml = `
+default: deepseek
+models:
+  deepseek:
+    displayName: DeepSeek
+    baseUrl: https://api.deepseek.com/anthropic
+    modelId: claude-sonnet-5
+    smallFastModel: deepseek-v4-flash
+    keyPool: true
+  kimi:
+    displayName: Kimi K2
+    baseUrl: https://api.moonshot.ai/anthropic
+    modelId: kimi-k2.7-code
+    smallFastModel: kimi-k2.5
+    keyPool:
+      envPrefix: 'KIMI_API_KEY_'
+    apiKeyEnv: KIMI_API_KEY
+`;
+    const namedPool = {
+      getKeyCount: (prefix?: string) => (prefix === 'KIMI_API_KEY_' ? 2 : 2),
+      select: vi.fn(async (prefix?: string) => (prefix === 'KIMI_API_KEY_' ? 'kimi-pool-key' : 'pool-key-1')),
+    } as unknown as KeyPoolService;
+
+    it('命名池（keyPool: { envPrefix }）应从该池 select', async () => {
+      const mod = new ModelRegistryService(config, namedPool, mockLogger);
+      mod.load(writeYaml('both-1.yaml', bothYaml));
+      const provider = await mod.resolveProvider('kimi');
+      expect(namedPool.select).toHaveBeenCalledWith('KIMI_API_KEY_');
+      expect(provider.apiKey).toBe('kimi-pool-key');
+      expect(provider.keySource).toBe('pool');
+    });
+
+    it('命名池空且声明 apiKeyEnv → 回退单 Key（keySource=env）', async () => {
+      const emptyNamedPool = {
+        getKeyCount: (prefix?: string) => (prefix === 'KIMI_API_KEY_' ? 0 : 2),
+        select: async () => 'pool-key-1',
+      } as unknown as KeyPoolService;
+      const mod = new ModelRegistryService(config, emptyNamedPool, mockLogger);
+      mod.load(writeYaml('both-2.yaml', bothYaml));
+      const provider = await mod.resolveProvider('kimi');
+      expect(provider.apiKey).toBe('kimi-key-1');
+      expect(provider.keySource).toBe('env');
+    });
+
+    it('命名池空且无 apiKeyEnv → kimi 不可用且 listModels 不含它', async () => {
+      const emptyNamedPool = {
+        getKeyCount: (prefix?: string) => (prefix === 'KIMI_API_KEY_' ? 0 : 2),
+        select: async () => 'pool-key-1',
+      } as unknown as KeyPoolService;
+      const mod = new ModelRegistryService(config, emptyNamedPool, mockLogger);
+      mod.load(writeYaml('both-3.yaml', bothYaml.replace('    apiKeyEnv: KIMI_API_KEY\n', '')));
+      const models = mod.listModels();
+      expect(models.find((m) => m.name === 'kimi')).toBeUndefined();
+      expect(models.find((m) => m.name === 'deepseek')).toBeDefined();
+    });
+
+    it('全局池（keyPool: true）仍走全局 select（不传前缀）', async () => {
+      const mod = new ModelRegistryService(config, namedPool, mockLogger);
+      mod.load(writeYaml('both-4.yaml', bothYaml));
+      const provider = await mod.resolveProvider();
+      expect(provider.apiKey).toBe('pool-key-1');
+      expect(provider.keySource).toBe('pool');
+    });
+  });
 });

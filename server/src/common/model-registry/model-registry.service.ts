@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { Logger } from 'nestjs-pino';
 import { parse } from 'yaml';
-import { KeyPoolService } from '../key-pool/key-pool.service';
+import { DEFAULT_KEY_POOL_PREFIX, KeyPoolService } from '../key-pool/key-pool.service';
 import { ModelInfo, ModelRegistryConfig, ProviderConfig, ResolvedProvider } from './model-registry.types';
 
 /**
@@ -59,6 +59,9 @@ export class ModelRegistryService implements OnModuleInit {
       if (!p.apiKeyEnv && !p.keyPool) {
         throw new Error(`provider ${name} 缺少 Key 来源（apiKeyEnv 或 keyPool）`);
       }
+      if (p.keyPool && typeof p.keyPool === 'object' && !p.keyPool.envPrefix) {
+        throw new Error(`provider ${name} 的 keyPool 对象缺少 envPrefix`);
+      }
     }
     let defaultName = parsed.default;
     if (!defaultName) {
@@ -80,9 +83,21 @@ export class ModelRegistryService implements OnModuleInit {
     }
   }
 
+  /** keyPool 声明 → 池前缀（true 用全局池，对象用命名池） */
+  private poolPrefix(provider: ProviderConfig): string {
+    return typeof provider.keyPool === 'object' ? provider.keyPool.envPrefix : DEFAULT_KEY_POOL_PREFIX;
+  }
+
   private keyUnavailableReason(provider: ProviderConfig): string | null {
     if (provider.keyPool) {
-      return this.keyPool.getKeyCount() > 0 ? null : 'keyPool 池为空（LLM_API_KEY_N 未配置）';
+      const prefix = this.poolPrefix(provider);
+      if (this.keyPool.getKeyCount(prefix) > 0) return null;
+      // 池空 → 回退单 Key
+      if (provider.apiKeyEnv && this.configService.get<string>(provider.apiKeyEnv)) return null;
+      const poolLabel = `${prefix.replace(/_$/, '')}_N`;
+      return provider.apiKeyEnv
+        ? `Key 未配置（${poolLabel} 池空且 ${provider.apiKeyEnv} 缺失）`
+        : `keyPool 池为空（${poolLabel} 未配置）`;
     }
     if (provider.apiKeyEnv) {
       return this.configService.get<string>(provider.apiKeyEnv) ? null : `环境变量 ${provider.apiKeyEnv} 未配置`;
@@ -120,9 +135,24 @@ export class ModelRegistryService implements OnModuleInit {
         .join(', ');
       throw new BadRequestException(`未知模型: ${name}，可用: ${available}`);
     }
-    const apiKey = provider.keyPool
-      ? await this.keyPool.select()
-      : this.configService.get<string>(provider.apiKeyEnv!)!;
+    // 解析 Key：池优先（命名池或全局池），池空回退单 Key
+    let apiKey: string;
+    let keySource: 'pool' | 'env';
+    if (provider.keyPool) {
+      const prefix = this.poolPrefix(provider);
+      if (this.keyPool.getKeyCount(prefix) > 0) {
+        apiKey = await this.keyPool.select(prefix);
+        keySource = 'pool';
+      } else if (provider.apiKeyEnv) {
+        apiKey = this.configService.get<string>(provider.apiKeyEnv)!;
+        keySource = 'env';
+      } else {
+        throw new Error(`AI 服务不可用，请配置 ${prefix.replace(/_$/, '')}_N`);
+      }
+    } else {
+      apiKey = this.configService.get<string>(provider.apiKeyEnv!)!;
+      keySource = 'env';
+    }
     return {
       name,
       displayName: provider.displayName,
@@ -130,7 +160,7 @@ export class ModelRegistryService implements OnModuleInit {
       modelId: provider.modelId,
       smallFastModel: provider.smallFastModel,
       apiKey,
-      keySource: provider.keyPool ? 'pool' : 'env',
+      keySource,
     };
   }
 

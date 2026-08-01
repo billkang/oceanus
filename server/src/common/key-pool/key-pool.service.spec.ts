@@ -122,4 +122,34 @@ describe('KeyPoolService', () => {
       await expect(service.select()).rejects.toThrow(/^AI 服务不可用，请配置 LLM_API_KEY_N$/);
     });
   });
+
+  describe('per-provider named pool', () => {
+    it('SHOULD load and select from a named pool via select(prefix)', async () => {
+      service = await createService({
+        LLM_API_KEY_1: 'global-1',
+        KIMI_API_KEY_1: 'kimi-1',
+        KIMI_API_KEY_2: 'kimi-2',
+      });
+      service.onModuleInit();
+
+      expect(service.getKeyCount('KIMI_API_KEY_')).toBe(2);
+      const key = await service.select('KIMI_API_KEY_');
+      expect(['kimi-1', 'kimi-2']).toContain(key);
+    });
+
+    it('SHOULD throw with prefix-specific message when named pool empty', async () => {
+      service = await createService({});
+      service.onModuleInit();
+
+      await expect(service.select('KIMI_API_KEY_')).rejects.toThrow(/^AI 服务不可用，请配置 KIMI_API_KEY_N$/);
+    });
+
+    it('SHOULD keep global pool selection unchanged when prefix omitted', async () => {
+      service = await createService({ LLM_API_KEY_1: 'global-1' });
+      service.onModuleInit();
+
+      expect(service.getKeyCount()).toBe(1);
+      await expect(service.select()).resolves.toBe('global-1');
+    });
+  });
 });
