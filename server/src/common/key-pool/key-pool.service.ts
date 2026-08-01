@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Logger } from 'nestjs-pino';
 import { KeyPoolEntry, KeyPoolStats } from './key-pool.interface';
 
-/** 全局池默认前缀（provider 声明 keyPool: true 时使用） */
+/** 默认池前缀（服务缺省参数；模型注册表改为 apiKeyEnv 派生池，全局池 LLM_API_KEY_ 已不再由 registry 使用） */
 export const DEFAULT_KEY_POOL_PREFIX = 'LLM_API_KEY_';
 
 @Injectable()

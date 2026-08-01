@@ -2,12 +2,10 @@
  * 模型注册表类型定义
  *
  * 对应 server/config/models.yaml 的结构与运行时解析结果。
- * Key 永不进入 yaml：apiKeyEnv 引用单个环境变量，keyPool 引用环境变量池（可同时声明，
- * 运行时池优先、池空回退单 Key）。
+ * Key 永不进入 yaml：apiKeyEnv 引用单个环境变量，keyPool 开启池轮换。
+ * 池前缀 = apiKeyEnv + '_'（如 DEEPSEEK_API_KEY → DEEPSEEK_API_KEY_N），
+ * 每个 model 独立成池，运行时池优先、池空回退单 Key。
  */
-
-/** keyPool 声明：true → 全局 LLM_API_KEY_N 池；{ envPrefix } → 独立命名池（如 KIMI_API_KEY_N） */
-export type KeyPoolConfig = boolean | { envPrefix: string };
 
 /** yaml 中单个 provider 的声明（非敏感项） */
 export interface ProviderConfig {
@@ -15,10 +13,10 @@ export interface ProviderConfig {
   baseUrl: string;
   modelId: string;
   smallFastModel: string;
-  /** 从该环境变量读取单个 API Key（池空时兜底） */
-  apiKeyEnv?: string;
-  /** 复用 KeyPoolService 轮换（true → 全局池，{ envPrefix } → 命名池） */
-  keyPool?: KeyPoolConfig;
+  /** 单 Key 来源：从该环境变量读取一个 API Key（同时作为 keyPool 的池前缀基准） */
+  apiKeyEnv: string;
+  /** 是否开启池轮换：true → 从 apiKeyEnv 派生的独立池（apiKeyEnv_N） */
+  keyPool?: boolean;
 }
 
 /** models.yaml 解析后的整体结构 */

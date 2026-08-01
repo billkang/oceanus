@@ -42,6 +42,7 @@ models:
     modelId: claude-sonnet-5
     smallFastModel: deepseek-v4-flash
     keyPool: true
+    apiKeyEnv: DEEPSEEK_API_KEY
   kimi:
     displayName: Kimi K2
     baseUrl: https://api.moonshot.ai/anthropic
@@ -117,8 +118,9 @@ models:
     await expect(mod.resolveProvider()).rejects.toThrow();
   });
 
-  describe('命名池 / 单 Key 双支持', () => {
-    // deepseek 全局池 + kimi 命名池（keyPool 对象）且同时声明 apiKeyEnv 单 Key 兜底
+  describe('keyPool boolean + apiKeyEnv 派生池（每模型独立池）', () => {
+    // 两模型统一 keyPool: true，池前缀 = apiKeyEnv + '_'：deepseek → DEEPSEEK_API_KEY_，kimi → KIMI_API_KEY_
+    // 每个 model 的池独立：切模型即切池，全局 LLM_API_KEY_N 池不再参与
     const bothYaml = `
 default: deepseek
 models:
@@ -128,13 +130,13 @@ models:
     modelId: claude-sonnet-5
     smallFastModel: deepseek-v4-flash
     keyPool: true
+    apiKeyEnv: DEEPSEEK_API_KEY
   kimi:
     displayName: Kimi K2
     baseUrl: https://api.moonshot.ai/anthropic
     modelId: kimi-k2.7-code
     smallFastModel: kimi-k2.5
-    keyPool:
-      envPrefix: 'KIMI_API_KEY_'
+    keyPool: true
     apiKeyEnv: KIMI_API_KEY
 `;
     const namedPool = {
@@ -142,7 +144,7 @@ models:
       select: vi.fn(async (prefix?: string) => (prefix === 'KIMI_API_KEY_' ? 'kimi-pool-key' : 'pool-key-1')),
     } as unknown as KeyPoolService;
 
-    it('命名池（keyPool: { envPrefix }）应从该池 select', async () => {
+    it('keyPool: true → 从 apiKeyEnv 派生的命名池 select（每模型独立池）', async () => {
       const mod = new ModelRegistryService(config, namedPool, mockLogger);
       mod.load(writeYaml('both-1.yaml', bothYaml));
       const provider = await mod.resolveProvider('kimi');
@@ -151,7 +153,7 @@ models:
       expect(provider.keySource).toBe('pool');
     });
 
-    it('命名池空且声明 apiKeyEnv → 回退单 Key（keySource=env）', async () => {
+    it('命名池空且 apiKeyEnv 已配置 → 回退单 Key（keySource=env）', async () => {
       const emptyNamedPool = {
         getKeyCount: (prefix?: string) => (prefix === 'KIMI_API_KEY_' ? 0 : 2),
         select: async () => 'pool-key-1',
@@ -163,22 +165,32 @@ models:
       expect(provider.keySource).toBe('env');
     });
 
-    it('命名池空且无 apiKeyEnv → kimi 不可用且 listModels 不含它', async () => {
+    it('命名池空且单 Key 缺失 → kimi 不可用且 listModels 不含它', async () => {
+      const noKimiKeyConfig = {
+        get: (k: string) => (k === 'KIMI_API_KEY' ? undefined : env[k]),
+      } as unknown as ConfigService;
       const emptyNamedPool = {
         getKeyCount: (prefix?: string) => (prefix === 'KIMI_API_KEY_' ? 0 : 2),
         select: async () => 'pool-key-1',
       } as unknown as KeyPoolService;
-      const mod = new ModelRegistryService(config, emptyNamedPool, mockLogger);
-      mod.load(writeYaml('both-3.yaml', bothYaml.replace('    apiKeyEnv: KIMI_API_KEY\n', '')));
+      const mod = new ModelRegistryService(noKimiKeyConfig, emptyNamedPool, mockLogger);
+      mod.load(writeYaml('both-3.yaml', bothYaml));
       const models = mod.listModels();
       expect(models.find((m) => m.name === 'kimi')).toBeUndefined();
       expect(models.find((m) => m.name === 'deepseek')).toBeDefined();
     });
 
-    it('全局池（keyPool: true）仍走全局 select（不传前缀）', async () => {
+    it('keyPool: true 但缺 apiKeyEnv → 配置非法，isAvailable 为 false', () => {
       const mod = new ModelRegistryService(config, namedPool, mockLogger);
-      mod.load(writeYaml('both-4.yaml', bothYaml));
-      const provider = await mod.resolveProvider();
+      mod.load(writeYaml('both-4.yaml', bothYaml.replace('    apiKeyEnv: KIMI_API_KEY\n', '')));
+      expect(mod.isAvailable()).toBe(false);
+    });
+
+    it('deepseek（keyPool: true）也走派生池前缀 DEEPSEEK_API_KEY_', async () => {
+      const mod = new ModelRegistryService(config, namedPool, mockLogger);
+      mod.load(writeYaml('both-5.yaml', bothYaml));
+      const provider = await mod.resolveProvider('deepseek');
+      expect(namedPool.select).toHaveBeenCalledWith('DEEPSEEK_API_KEY_');
       expect(provider.apiKey).toBe('pool-key-1');
       expect(provider.keySource).toBe('pool');
     });

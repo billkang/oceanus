@@ -1,5 +1,6 @@
 # 模型注册表 — 声明可用的 LLM provider（Key 不在此文件，经 apiKeyEnv/keyPool 引用环境变量）
-# 每个 model 可同时声明 keyPool + apiKeyEnv，运行时池优先、池空回退单 Key
+# keyPool: true → 池前缀 = apiKeyEnv + '_'，每个 model 独立成池（切模型即切池）
+# 运行时池优先、池空回退单 Key（apiKeyEnv）
 default: deepseek
 models:
   deepseek:
@@ -7,12 +8,12 @@ models:
     baseUrl: https://api.deepseek.com/anthropic
     modelId: deepseek-v4-flash      # DeepSeek Anthropic 端点当前接受的模型串（生产已验证）
     smallFastModel: deepseek-v4-flash
-    keyPool: true                   # 全局 LLM_API_KEY_N 池轮换
+    keyPool: true                   # 池 DEEPSEEK_API_KEY_N 轮换
     apiKeyEnv: DEEPSEEK_API_KEY     # 单 Key 兜底（池空时用）
   kimi:
     displayName: Kimi K2
     baseUrl: https://api.moonshot.ai/anthropic
     modelId: kimi-k2.7-code
     smallFastModel: kimi-k2.5
-    keyPool: { envPrefix: 'KIMI_API_KEY_' }   # 独立命名池轮换（KIMI_API_KEY_N）
-    apiKeyEnv: KIMI_API_KEY                   # 单 Key 兜底（池空时用）
+    keyPool: true                   # 池 KIMI_API_KEY_N 轮换（独立于 deepseek 池）
+    apiKeyEnv: KIMI_API_KEY         # 单 Key 兜底（池空时用）

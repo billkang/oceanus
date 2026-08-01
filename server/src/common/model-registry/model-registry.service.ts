@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { Logger } from 'nestjs-pino';
 import { parse } from 'yaml';
-import { DEFAULT_KEY_POOL_PREFIX, KeyPoolService } from '../key-pool/key-pool.service';
+import { KeyPoolService } from '../key-pool/key-pool.service';
 import { ModelInfo, ModelRegistryConfig, ProviderConfig, ResolvedProvider } from './model-registry.types';
 
 /**
@@ -12,8 +12,8 @@ import { ModelInfo, ModelRegistryConfig, ProviderConfig, ResolvedProvider } from
  *
  * 从 server/config/models.yaml 加载多 provider 配置（displayName/baseUrl/modelId/
  * smallFastModel/Key 来源），提供 provider 解析、可用性判定与模型列表。
- * Key 来源：keyPool: true → KeyPoolService（LLM_API_KEY_N 轮换）；
- *            apiKeyEnv: NAME  → ConfigService 读取环境变量。
+ * Key 来源：keyPool: true → KeyPoolService 轮换（池前缀 = apiKeyEnv + '_'，每模型独立池）；
+ *           池空回退 apiKeyEnv 单 Key。切模型即切池。
  */
 @Injectable()
 export class ModelRegistryService implements OnModuleInit {
@@ -56,11 +56,11 @@ export class ModelRegistryService implements OnModuleInit {
       if (!p?.displayName || !p.baseUrl || !p.modelId || !p.smallFastModel) {
         throw new Error(`provider ${name} 缺少必填字段（displayName/baseUrl/modelId/smallFastModel）`);
       }
-      if (!p.apiKeyEnv && !p.keyPool) {
-        throw new Error(`provider ${name} 缺少 Key 来源（apiKeyEnv 或 keyPool）`);
+      if (!p.apiKeyEnv) {
+        throw new Error(`provider ${name} 缺少 apiKeyEnv（单 Key 与 keyPool 池前缀的来源）`);
       }
-      if (p.keyPool && typeof p.keyPool === 'object' && !p.keyPool.envPrefix) {
-        throw new Error(`provider ${name} 的 keyPool 对象缺少 envPrefix`);
+      if (p.keyPool && !p.apiKeyEnv) {
+        throw new Error(`provider ${name} 的 keyPool 需要同时声明 apiKeyEnv（池前缀取自 apiKeyEnv）`);
       }
     }
     let defaultName = parsed.default;
@@ -83,9 +83,9 @@ export class ModelRegistryService implements OnModuleInit {
     }
   }
 
-  /** keyPool 声明 → 池前缀（true 用全局池，对象用命名池） */
+  /** keyPool: true → 池前缀 = apiKeyEnv + '_'（每模型独立池，如 DEEPSEEK_API_KEY → DEEPSEEK_API_KEY_N） */
   private poolPrefix(provider: ProviderConfig): string {
-    return typeof provider.keyPool === 'object' ? provider.keyPool.envPrefix : DEFAULT_KEY_POOL_PREFIX;
+    return `${provider.apiKeyEnv}_`;
   }
 
   private keyUnavailableReason(provider: ProviderConfig): string | null {
@@ -93,16 +93,11 @@ export class ModelRegistryService implements OnModuleInit {
       const prefix = this.poolPrefix(provider);
       if (this.keyPool.getKeyCount(prefix) > 0) return null;
       // 池空 → 回退单 Key
-      if (provider.apiKeyEnv && this.configService.get<string>(provider.apiKeyEnv)) return null;
+      if (this.configService.get<string>(provider.apiKeyEnv)) return null;
       const poolLabel = `${prefix.replace(/_$/, '')}_N`;
-      return provider.apiKeyEnv
-        ? `Key 未配置（${poolLabel} 池空且 ${provider.apiKeyEnv} 缺失）`
-        : `keyPool 池为空（${poolLabel} 未配置）`;
+      return `Key 未配置（${poolLabel} 池空且 ${provider.apiKeyEnv} 缺失）`;
     }
-    if (provider.apiKeyEnv) {
-      return this.configService.get<string>(provider.apiKeyEnv) ? null : `环境变量 ${provider.apiKeyEnv} 未配置`;
-    }
-    return '缺少 Key 来源';
+    return this.configService.get<string>(provider.apiKeyEnv) ? null : `环境变量 ${provider.apiKeyEnv} 未配置`;
   }
 
   /**
@@ -135,22 +130,15 @@ export class ModelRegistryService implements OnModuleInit {
         .join(', ');
       throw new BadRequestException(`未知模型: ${name}，可用: ${available}`);
     }
-    // 解析 Key：池优先（命名池或全局池），池空回退单 Key
+    // 解析 Key：池优先（apiKeyEnv 派生池，每模型独立），池空回退单 Key
+    const prefix = this.poolPrefix(provider);
     let apiKey: string;
     let keySource: 'pool' | 'env';
-    if (provider.keyPool) {
-      const prefix = this.poolPrefix(provider);
-      if (this.keyPool.getKeyCount(prefix) > 0) {
-        apiKey = await this.keyPool.select(prefix);
-        keySource = 'pool';
-      } else if (provider.apiKeyEnv) {
-        apiKey = this.configService.get<string>(provider.apiKeyEnv)!;
-        keySource = 'env';
-      } else {
-        throw new Error(`AI 服务不可用，请配置 ${prefix.replace(/_$/, '')}_N`);
-      }
+    if (provider.keyPool && this.keyPool.getKeyCount(prefix) > 0) {
+      apiKey = await this.keyPool.select(prefix);
+      keySource = 'pool';
     } else {
-      apiKey = this.configService.get<string>(provider.apiKeyEnv!)!;
+      apiKey = this.configService.get<string>(provider.apiKeyEnv)!;
       keySource = 'env';
     }
     return {
