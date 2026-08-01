@@ -1,0 +1,143 @@
+{
+  "changeName": "multi-model-runtime-switching",
+  "schemaName": "spec-driven",
+  "verifiedAt": "2026-08-01",
+  "summary": {
+    "completeness": {
+      "tasks": { "done": 33, "total": 33 },
+      "requirementsCovered": 6,
+      "status": "pass"
+    },
+    "correctness": {
+      "requirementsVerified": 6,
+      "testCount": { "server": 191, "client": 131 },
+      "status": "pass"
+    },
+    "coherence": {
+      "designAdherence": "followed",
+      "status": "pass"
+    }
+  },
+  "completeness": [
+    {
+      "dimension": "task-completion",
+      "status": "pass",
+      "detail": "tasks.md 全部 33 项已勾选，描述已同步演进后的实现（keyPool 派生池 + enabled 开关）"
+    },
+    {
+      "dimension": "spec-coverage",
+      "status": "pass",
+      "detail": "delta specs 覆盖模型注册表 / Key 解析 / 模型解析 / query 注入 / GET /models / 选择器条件渲染 6 项需求"
+    }
+  ],
+  "correctness": [
+    {
+      "dimension": "requirement-implementation",
+      "status": "pass",
+      "detail": "6 项需求均有实现证据：model-registry.service.ts / agent.service.ts / chat.service.ts / chat.controller.ts / chat.component.ts"
+    },
+    {
+      "dimension": "scenario-coverage",
+      "status": "pass",
+      "detail": "关键场景均有测试：model-registry 19 测试（含 enabled 开关 4 项 + 原型链绕过 1 项）、agent 21 测试、chat 39 测试、langfuse 12 测试、key-pool 11 测试、前端 131 测试"
+    }
+  ],
+  "coherence": [
+    {
+      "dimension": "design-adherence",
+      "status": "pass",
+      "detail": "实现遵循 ADR-013 决策（D1-D9 + enabled 开关 + keyPool 派生池演进）；isAvailable 全有或全无为 proposal 明示的有意设计"
+    },
+    {
+      "dimension": "pattern-consistency",
+      "status": "pass",
+      "detail": "model-registry 模块遵循 common/ 下既有模块结构（types/service/module + spec），DTO 补 @ApiProperty 对齐项目惯例"
+    }
+  ],
+  "codeAudit": {
+    "reviewers": {
+      "backend": "Request Changes（🟡1）",
+      "infra": "Request Changes（🟡2）",
+      "security": "Approve",
+      "frontend": "Approve with Comments（仅🟢）"
+    },
+    "fixedFindings": [
+      {
+        "id": "be-1",
+        "severity": "major",
+        "title": "AGENT_MODEL 静默回归",
+        "fix": "recordGeneration 增加可选 model 参数，chat.service 透传请求逻辑名，移除对已废弃 AGENT_MODEL env 的读取",
+        "verifiedBy": "langfuse.service.spec.ts 2 项新测试（传 model 用该值 / 忽略 AGENT_MODEL 回退 claude）"
+      },
+      {
+        "id": "infra-1",
+        "severity": "major",
+        "title": "api-reference.md 鉴权表述错误",
+        "fix": "引言改为『全部端点（含 GET /models）需 JWT』"
+      },
+      {
+        "id": "infra-2",
+        "severity": "major",
+        "title": "GET /models 示例含已禁用模型",
+        "fix": "示例响应去除 enabled:false 的 kimi，并注明当前下线状态"
+      },
+      {
+        "id": "sec-1",
+        "severity": "minor",
+        "title": "resolveProvider 原型链绕过缺口",
+        "fix": "Object.hasOwn 加固 + 回归测试（__proto__ 抛 400）"
+      },
+      {
+        "id": "be-2",
+        "severity": "minor",
+        "title": "validate() 死代码",
+        "fix": "删除不可达的 if (p.keyPool && !p.apiKeyEnv) 分支"
+      },
+      {
+        "id": "be-3",
+        "severity": "minor",
+        "title": "DTO model 缺 @ApiProperty",
+        "fix": "补 @ApiProperty（example: deepseek / description）"
+      },
+      {
+        "id": "be-4",
+        "severity": "minor",
+        "title": "overview.md / context.md 缺 model-registry 节点",
+        "fix": "补架构图节点 + 模块表行 + 技术栈 AI 模型行；context.md 日期更新"
+      }
+    ],
+    "exemptedFindings": [
+      {
+        "id": "be-5",
+        "severity": "info",
+        "title": "isAvailable 全有或全无 vs listModels 逐模型矛盾",
+        "reason": "proposal 明示的有意设计：默认 provider 单点健康，AI 整体禁用不静默回退"
+      },
+      {
+        "id": "fe-1",
+        "severity": "info",
+        "title": "getModels 手写 subscribe 未用 httpResource",
+        "reason": "与模块内 loadHistory 既有手动 subscribe 一致，一次性初始化读取，前端 agent 标注不阻塞"
+      },
+      {
+        "id": "fe-2",
+        "severity": "info",
+        "title": "测试 fixture 重复创建 + styleClass ! 前缀",
+        "reason": "非本变更引入（pre-existing），前端 agent 标注可留意后续统一迁移"
+      }
+    ]
+  },
+  "verificationCommands": {
+    "server": [
+      { "cmd": "pnpm vitest run", "result": "191/191 passed" },
+      { "cmd": "pnpm typecheck", "result": "clean" },
+      { "cmd": "pnpm lint", "result": "clean" }
+    ],
+    "client": [
+      { "cmd": "pnpm ng test --watch=false", "result": "131/131 passed" },
+      { "cmd": "pnpm ng lint", "result": "clean" },
+      { "cmd": "pnpm exec tsc --build --noEmit", "result": "clean" }
+    ]
+  },
+  "assessment": "All checks passed. Ready for archive."
+}
