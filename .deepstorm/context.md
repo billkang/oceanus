@@ -1,7 +1,7 @@
 # 项目上下文地图
 
 > AI 消费的紧凑摘要 | 人工详档见 `docs/`
-> 更新: 2026-07-27
+> 更新: 2026-08-01
 
 ---
 
@@ -18,15 +18,16 @@
 
 ## 模块结构
 
-| 模块     | 路径                  | 说明                                |
-| -------- | --------------------- | ----------------------------------- |
-| Auth     | `backend/src/auth`    | 测试账号 JWT 登录                   |
-| Project  | `backend/src/project` | 项目 CRUD                           |
-| Session  | `backend/src/session` | 会话管理 + 级联清理                 |
-| Chat     | `backend/src/chat`    | 消息转发 + SSE + 请求队列 + KeyPool |
-| Agent    | `backend/src/agent`   | Claude Agent SDK 封装               |
-| Asset    | `backend/src/asset`   | 资产面板（PRD / task 等）           |
-| Frontend | `frontend/src`        | Angular SPA，三栏布局               |
+| 模块          | 路径                                | 说明                                                   |
+| ------------- | ----------------------------------- | ------------------------------------------------------ |
+| Auth          | `backend/src/auth`                  | 测试账号 JWT 登录                                      |
+| Project       | `backend/src/project`               | 项目 CRUD                                              |
+| Session       | `backend/src/session`               | 会话管理 + 级联清理                                    |
+| Chat          | `backend/src/chat`                  | 消息转发 + SSE + 请求队列 + KeyPool                    |
+| Agent         | `backend/src/agent`                 | Claude Agent SDK 封装                                  |
+| ModelRegistry | `backend/src/common/model-registry` | 多 provider 注册（models.yaml）+ Key 解析 + 可用性判定 |
+| Asset         | `backend/src/asset`                 | 资产面板（PRD / task 等）                              |
+| Frontend      | `frontend/src`                      | Angular SPA，三栏布局                                  |
 
 ## 核心依赖关系
 

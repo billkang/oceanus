@@ -59,9 +59,6 @@ export class ModelRegistryService implements OnModuleInit {
       if (!p.apiKeyEnv) {
         throw new Error(`provider ${name} 缺少 apiKeyEnv（单 Key 与 keyPool 池前缀的来源）`);
       }
-      if (p.keyPool && !p.apiKeyEnv) {
-        throw new Error(`provider ${name} 的 keyPool 需要同时声明 apiKeyEnv（池前缀取自 apiKeyEnv）`);
-      }
     }
     let defaultName = parsed.default;
     if (!defaultName) {
@@ -127,8 +124,9 @@ export class ModelRegistryService implements OnModuleInit {
       throw new Error('AI 服务未配置');
     }
     const name = model ?? this.getDefaultName();
+    // Object.hasOwn 防原型链绕过（models['__proto__'] 等返回 truthy 可绕过未知模型 400）
     const provider = this.config.models[name];
-    if (!provider || this.unavailable.has(name)) {
+    if (!Object.hasOwn(this.config.models, name) || !provider || this.unavailable.has(name)) {
       const available = this.listModels()
         .map((m) => m.name)
         .join(', ');

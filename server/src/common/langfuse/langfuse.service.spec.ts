@@ -4,13 +4,21 @@ import { LangfuseService } from './langfuse.service';
 
 /** 捕获 Langfuse client.trace() 的入参（mock 模块层面） */
 let capturedTrace: { name?: string; sessionId?: string; tags?: string[] } | undefined;
+/** 捕获 trace.generation() 的入参 */
+let capturedGeneration: { name?: string; model?: string; input?: string; output?: string } | undefined;
 
 vi.mock('langfuse', () => {
   return {
     Langfuse: class {
       trace(opts: { name?: string; sessionId?: string; tags?: string[] }) {
         capturedTrace = opts;
-        return { id: 'trace-id', span: vi.fn(), generation: vi.fn() };
+        return {
+          id: 'trace-id',
+          span: vi.fn(),
+          generation: (genOpts: { name?: string; model?: string; input?: string; output?: string }) => {
+            capturedGeneration = genOpts;
+          },
+        };
       }
       flushAsync = vi.fn().mockResolvedValue(undefined);
     },
@@ -32,6 +40,7 @@ describe('LangfuseService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     capturedTrace = undefined;
+    capturedGeneration = undefined;
   });
 
   describe('graceful degradation', () => {
@@ -105,6 +114,36 @@ describe('LangfuseService', () => {
     it('不可用时 recordGeneration 不操作', () => {
       const service = createService({});
       expect(() => service.recordGeneration('s1', 'input', 'output')).not.toThrow();
+    });
+
+    it('传入 model 时 generation 记录该 model（不再读 AGENT_MODEL）', () => {
+      const service = createService({
+        LANGFUSE_BASE_URL: 'http://localhost:3000',
+        LANGFUSE_PUBLIC_KEY: 'pk',
+        LANGFUSE_SECRET_KEY: 'sk',
+        AGENT_MODEL: 'legacy-model', // 已废弃，应被忽略
+      });
+      service.onModuleInit();
+      service.createTrace('sid');
+
+      service.recordGeneration('sid', 'input', 'output', undefined, 'kimi');
+
+      expect(capturedGeneration?.model).toBe('kimi');
+    });
+
+    it('未传 model 时回退 claude（忽略已废弃的 AGENT_MODEL）', () => {
+      const service = createService({
+        LANGFUSE_BASE_URL: 'http://localhost:3000',
+        LANGFUSE_PUBLIC_KEY: 'pk',
+        LANGFUSE_SECRET_KEY: 'sk',
+        AGENT_MODEL: 'legacy-model',
+      });
+      service.onModuleInit();
+      service.createTrace('sid');
+
+      service.recordGeneration('sid', 'input', 'output');
+
+      expect(capturedGeneration?.model).toBe('claude');
     });
 
     it('不可用时 recordThinking 不操作', () => {

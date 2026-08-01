@@ -1,6 +1,6 @@
 # API 参考
 
-> Oceanus 后端 HTTP API。全局前缀 `api/v1`，除 `GET /api/v1/models` 外全部端点需 JWT Bearer 鉴权。
+> Oceanus 后端 HTTP API。全局前缀 `api/v1`，全部端点（含 `GET /api/v1/models`）需 JWT Bearer 鉴权。
 
 ## 认证
 
@@ -50,13 +50,10 @@ Authorization: Bearer <JWT>
 ### 响应 `200`
 
 ```json
-[
-  { "name": "deepseek", "displayName": "DeepSeek", "default": true },
-  { "name": "kimi", "displayName": "Kimi K2", "default": false }
-]
+[{ "name": "deepseek", "displayName": "DeepSeek", "default": true }]
 ```
 
-> 不含 `enabled: false` 的模型与不可解析（Key 缺失）的模型。
+> 不含 `enabled: false` 的模型与不可解析（Key 缺失）的模型（当前 kimi 为 `enabled: false` 下线状态，故未列出）。
 
 ---
 

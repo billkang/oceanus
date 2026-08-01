@@ -282,7 +282,8 @@ export class ChatService {
           this.messageRoundCount.set(finalSessionId, round);
 
           if (!limitHit && responseText.trim().length > 0) {
-            this.langfuseService.recordGeneration(finalSessionId, content, responseText, tokenUsage);
+            // 透传请求 model（逻辑名），与 createTrace 的 model tag 一致
+            this.langfuseService.recordGeneration(finalSessionId, content, responseText, tokenUsage, model);
           }
 
           await this.langfuseService.flushTrace(finalSessionId);

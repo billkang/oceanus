@@ -1,3 +1,4 @@
+import { ApiProperty } from '@nestjs/swagger';
 import { IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 /** POST /api/v1/chat 支持的操作类型 */
@@ -27,5 +28,10 @@ export class ChatRequestDto {
 
   @IsString()
   @IsOptional()
+  @ApiProperty({
+    example: 'deepseek',
+    description: '逻辑模型名（来自 GET /models）；省略用默认 provider',
+    required: false,
+  })
   model?: string;
 }

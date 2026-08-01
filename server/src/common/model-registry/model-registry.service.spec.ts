@@ -81,6 +81,16 @@ models:
     }
   });
 
+  it('__proto__ 等原型键抛 BadRequestException（防原型链绕过）', async () => {
+    service.load(writeYaml('proto-1.yaml', validYaml));
+    try {
+      await service.resolveProvider('__proto__');
+      expect.fail('should throw');
+    } catch (e) {
+      expect(e).toBeInstanceOf(BadRequestException);
+    }
+  });
+
   it('文件缺失 → isAvailable 为 false', () => {
     service.load('/nonexistent/models.yaml');
     expect(service.isAvailable()).toBe(false);

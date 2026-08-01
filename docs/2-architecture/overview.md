@@ -26,6 +26,7 @@ flowchart TB
         Chat[Chat Module<br/>SSE + RequestQueue]
         Session[Session Manager]
         Agent[Agent SDK 封装]
+        Registry[Model Registry<br/>models.yaml 多 provider]
     end
     subgraph SDK[Claude Agent SDK]
         SdkLoop[tool_use 循环<br/>流事件]
@@ -60,14 +61,15 @@ flowchart TB
 
 ## 模块说明
 
-| 模块    | 路径                   | 职责                                         |
-| ------- | ---------------------- | -------------------------------------------- |
-| Auth    | `backend/src/auth/`    | 测试账号登录，JWT Token 签发                 |
-| Project | `backend/src/project/` | 项目 CRUD                                    |
-| Session | `backend/src/session/` | 会话管理 + 级联清理（DB + JSONL）            |
-| Chat    | `backend/src/chat/`    | 消息转发 + SSE 流式推送 + 请求队列 + KeyPool |
-| Agent   | `backend/src/agent/`   | Claude Agent SDK 封装                        |
-| Asset   | `backend/src/asset/`   | 资产面板（PRD、诊断报告等）                  |
+| 模块          | 路径                                 | 职责                                                   |
+| ------------- | ------------------------------------ | ------------------------------------------------------ |
+| Auth          | `backend/src/auth/`                  | 测试账号登录，JWT Token 签发                           |
+| Project       | `backend/src/project/`               | 项目 CRUD                                              |
+| Session       | `backend/src/session/`               | 会话管理 + 级联清理（DB + JSONL）                      |
+| Chat          | `backend/src/chat/`                  | 消息转发 + SSE 流式推送 + 请求队列 + KeyPool           |
+| Agent         | `backend/src/agent/`                 | Claude Agent SDK 封装                                  |
+| ModelRegistry | `backend/src/common/model-registry/` | 多 provider 注册（models.yaml）+ Key 解析 + 可用性判定 |
+| Asset         | `backend/src/asset/`                 | 资产面板（PRD、诊断报告等）                            |
 
 ---
 
@@ -249,7 +251,7 @@ erDiagram
 | ORM      | Prisma 6                                                 |
 | 数据库   | PostgreSQL 17                                            |
 | AI 引擎  | Claude Agent SDK（TypeScript）                           |
-| AI 模型  | 默认 Claude Sonnet 5，可切换国产模型                     |
+| AI 模型  | 多模型注册（models.yaml），默认 DeepSeek，前端可选       |
 | 实时通信 | SSE                                                      |
 | 日志     | Pino → OTel → SigNoz                                     |
 | 追踪     | OTel → Langfuse（自托管）                                |

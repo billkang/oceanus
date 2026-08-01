@@ -134,12 +134,14 @@ export class LangfuseService implements OnModuleInit {
    *
    * 每次 Agent 完成一轮回复后调用，将模型的文本输出、输入和 Token 用量
    * 作为 Generation 上报到当前 Trace 下。
+   * @param model 可选模型逻辑名（与 createTrace 的 model tag 一致）；省略回退 'claude'
    */
   recordGeneration(
     sdkSessionId: string,
     input: string,
     output: string,
     usage?: { inputTokens?: number; outputTokens?: number },
+    model?: string,
   ): void {
     if (!this.available) return;
 
@@ -156,11 +158,11 @@ export class LangfuseService implements OnModuleInit {
         this.traces.set(sdkSessionId, trace);
       }
 
-      const model = this.configService.get<string>('AGENT_MODEL') || 'claude';
+      const resolvedModel = model || 'claude';
 
       trace.generation({
         name: 'agent-response',
-        model,
+        model: resolvedModel,
         input,
         output,
         ...(usage && (usage.inputTokens !== undefined || usage.outputTokens !== undefined)
