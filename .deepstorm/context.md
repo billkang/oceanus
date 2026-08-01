@@ -11,7 +11,7 @@
 - **前端**：Angular 21 + PrimeNG 21 + Tailwind CSS 4
 - **ORM**：Prisma 6 + PostgreSQL 17（4 表：users / projects / sessions / assets）
 - **AI 引擎**：Claude Agent SDK（TypeScript）
-- **AI 模型**：默认 Claude Sonnet 5；通过 `ANTHROPIC_*` 环境变量可切换国产模型
+- **AI 模型**：多模型注册（规划中，change `multi-model-runtime-switching`）：配置文件注册多 provider（DeepSeek / Kimi），前端手动选择，后端经 `query()` 的 `model` + `env` 逐调用切换；当前仅 DeepSeek（`ANTHROPIC_BASE_URL` 指向 `https://api.deepseek.com/anthropic`）
 - **实时通信**：SSE
 - **构建**：pnpm workspaces（monorepo）
 - **端口**：后端 3100，前端 4300

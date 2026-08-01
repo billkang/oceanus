@@ -10,6 +10,7 @@ import { LangfuseModule } from './common/langfuse/langfuse.module';
 import { LoggingModule } from './common/logging/logging.module';
 import { AgentModule } from './agent/agent.module';
 import { KeyPoolModule } from './common/key-pool/key-pool.module';
+import { ModelRegistryModule } from './common/model-registry/model-registry.module';
 import { RequestQueueModule } from './common/queue/request-queue.module';
 import { AuthModule } from './auth/auth.module';
 import { ProjectModule } from './project/project.module';
@@ -96,6 +97,7 @@ import { HealthModule } from './health/health.module';
     PrismaModule,
     LangfuseModule,
     KeyPoolModule,
+    ModelRegistryModule,
     LoggingModule,
     AgentModule,
     AuthModule,

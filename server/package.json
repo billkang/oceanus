@@ -46,7 +46,8 @@
     "nestjs-pino": "^4.6.1",
     "pino": "^10.3.1",
     "reflect-metadata": "^0.2.0",
-    "rxjs": "^7.8.0"
+    "rxjs": "^7.8.0",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
     "@analogjs/vitest-angular": "^2.6.3",
