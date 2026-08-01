@@ -2,6 +2,10 @@
 
 # Spec: Log Infrastructure
 
+## Purpose
+
+日志基础设施能力（已废弃）：原基于 Grafana、Loki、Promtail 的容器日志采集、存储与查询方案，已被 SigNoz 自托管方案替代。
+
 ## Requirements
 
 ### Requirement: Docker Compose 集成日志服务

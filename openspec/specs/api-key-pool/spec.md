@@ -1,4 +1,10 @@
-## ADDED Requirements
+# api-key-pool Specification
+
+## Purpose
+
+Oceanus 后端 LLM API Key 池管理能力：支持通过环境变量注册多个 Key，使用 Least-Used 策略选择 Key，故障时自动切换，并在 Cluster 模式下通过 Redis 共享计数与故障状态。
+
+## Requirements
 
 ### Requirement: 多 Key 注册与配置
 
