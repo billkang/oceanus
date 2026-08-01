@@ -23,18 +23,11 @@ export class KeyPoolService implements OnModuleInit {
       if (!key) break;
       this.keys.push({ key, usageCount: 0, failureCount: 0, lastFailureAt: null });
     }
-    // Fallback to ANTHROPIC_API_KEY
-    if (this.keys.length === 0) {
-      const fallbackKey = this.configService.get<string>('ANTHROPIC_API_KEY');
-      if (fallbackKey) {
-        this.keys.push({ key: fallbackKey, usageCount: 0, failureCount: 0, lastFailureAt: null });
-      }
-    }
   }
 
   async select(): Promise<string> {
     if (this.keys.length === 0) {
-      throw new Error('AI 服务不可用，请配置 LLM_API_KEY_N 或 ANTHROPIC_API_KEY');
+      throw new Error('AI 服务不可用，请配置 LLM_API_KEY_N');
     }
     return this.selectLocal();
   }

@@ -36,12 +36,12 @@ describe('KeyPoolService', () => {
       expect(service.getKeyCount()).toBe(3);
     });
 
-    it('SHOULD fallback to ANTHROPIC_API_KEY when LLM_API_KEY_N is empty', async () => {
+    it('SHOULD NOT fallback to ANTHROPIC_API_KEY — Key 来源统一走模型注册表', async () => {
       service = await createService({
         ANTHROPIC_API_KEY: 'fallback-key',
       });
       service.onModuleInit();
-      expect(service.getKeyCount()).toBe(1);
+      expect(service.getKeyCount()).toBe(0);
     });
 
     it('SHOULD have zero keys when no key env vars exist', async () => {
@@ -119,7 +119,7 @@ describe('KeyPoolService', () => {
       service = await createService({});
       service.onModuleInit();
 
-      await expect(service.select()).rejects.toThrow('AI 服务不可用，请配置 LLM_API_KEY_N 或 ANTHROPIC_API_KEY');
+      await expect(service.select()).rejects.toThrow(/^AI 服务不可用，请配置 LLM_API_KEY_N$/);
     });
   });
 });
