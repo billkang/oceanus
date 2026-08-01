@@ -1,8 +1,14 @@
-## ADDED Requirements
+# chat-streaming Specification
+
+## Purpose
+
+Oceanus 网页聊天核心交互能力：消息通过 SSE 实时流式收发，支持按钮状态切换、队列 UI 提示、SDK 事件映射、流后处理管线、滚动管理、错误重试等前端聊天行为。
+
+## Requirements
 
 ### Requirement: 发送消息
 
-用户可在聊天输入框中发送消息，通过统一端点 `POST /api/v1/chat`（`action: message`）转发给 Agent SDK 处理，不持久化到数据库。新会话不传 `sessionId`，后续消息携带 `sessionId` 通过 SDK 的 `resume` 机制续传。
+用户 SHALL 可在聊天输入框中发送消息，通过统一端点 `POST /api/v1/chat`（`action: message`）转发给 Agent SDK 处理，不持久化到数据库。新会话不传 `sessionId`，后续消息携带 `sessionId` 通过 SDK 的 `resume` 机制续传。
 
 出于并发控制，请求可能进入队列等待。
 
@@ -50,7 +56,7 @@
 
 ### Requirement: SSE 流式推送
 
-AI 响应通过 SSE 实时推送到前端，前端流式渲染。
+AI 响应 SHALL 通过 SSE 实时推送到前端，前端流式渲染。
 
 #### Scenario: 接收文本块
 
@@ -75,7 +81,7 @@ AI 响应通过 SSE 实时推送到前端，前端流式渲染。
 
 ### Requirement: 发送/中断/取消排队按钮状态切换
 
-输入区右下角的按钮根据流式状态切换功能：非流式中为发送按钮，流式中为中断按钮，排队等待中为取消排队按钮。三个状态共享同一按钮位置，使用 `@if/@else` 控制流实现切换。
+输入区右下角的按钮 SHALL 根据流式状态切换功能：非流式中为发送按钮，流式中为中断按钮，排队等待中为取消排队按钮。三个状态共享同一按钮位置，使用 `@if/@else` 控制流实现切换。
 
 #### Scenario: 非流式状态下显示发送按钮
 
@@ -119,7 +125,7 @@ AI 响应通过 SSE 实时推送到前端，前端流式渲染。
 
 ### Requirement: isStreaming 标志位时序
 
-发送消息时 `isStreaming` 标志位必须**在调用 SSE API 之前**立即设置为 true，而非等待首个 SSE 事件。这是防止竞态条件的关键设计。
+发送消息时 `isStreaming` 标志位 SHALL **在调用 SSE API 之前**立即设置为 true，而非等待首个 SSE 事件。这是防止竞态条件的关键设计。
 
 #### Scenario: 首条消息发送时保护用户消息
 
@@ -144,7 +150,7 @@ AI 响应通过 SSE 实时推送到前端，前端流式渲染。
 
 ### Requirement: SDK 消息到 SSE 事件映射
 
-后端 ChatService 将 SDK AsyncGenerator 产生的每条 `SDKMessage` 映射为一个或多个 `SseEvent`，根据消息类型和内容块类型进行精细化处理。
+后端 ChatService SHALL 将 SDK AsyncGenerator 产生的每条 `SDKMessage` 映射为一个或多个 `SseEvent`，根据消息类型和内容块类型进行精细化处理。
 
 #### Scenario: 空文本块过滤
 
@@ -182,7 +188,7 @@ AI 响应通过 SSE 实时推送到前端，前端流式渲染。
 
 ### Requirement: 流完成后处理管线
 
-每条消息的 SSE 流完成后，后端按固定管线执行后处理：标题更新 → PRD 自动提取。
+每条消息的 SSE 流完成后，后端 SHALL 按固定管线执行后处理：标题更新 → PRD 自动提取。
 
 #### Scenario: 标题更新触发
 
@@ -210,7 +216,7 @@ AI 响应通过 SSE 实时推送到前端，前端流式渲染。
 
 ### Requirement: **new** 会话占位符
 
-前端使用 `__new__` 作为特殊会话 ID 标记，表示"用户已选择专家但尚未发送首条消息"。这不是真实的 SDK 会话 ID。
+前端 SHALL 使用 `__new__` 作为特殊会话 ID 标记，表示"用户已选择专家但尚未发送首条消息"。这不是真实的 SDK 会话 ID。
 
 #### Scenario: 工作区创建新会话
 
@@ -232,7 +238,7 @@ AI 响应通过 SSE 实时推送到前端，前端流式渲染。
 
 ### Requirement: 技能选择器（Skills Popup）
 
-聊天输入框左侧提供技能按钮（魔法棒图标），点击弹出技能列表供用户快速选择。
+聊天输入框左侧 SHALL 提供技能按钮（魔法棒图标），点击弹出技能列表供用户快速选择。
 
 #### Scenario: 打开技能列表
 
@@ -248,7 +254,7 @@ AI 响应通过 SSE 实时推送到前端，前端流式渲染。
 
 ### Requirement: 文件拖拽上传
 
-聊天输入区支持拖拽文件上传（当前为占位实现，仅打印日志）。
+聊天输入区 SHALL 支持拖拽文件上传（当前为占位实现，仅打印日志）。
 
 #### Scenario: 拖拽文件到输入区
 
@@ -265,7 +271,7 @@ AI 响应通过 SSE 实时推送到前端，前端流式渲染。
 
 ### Requirement: 滚动管理
 
-消息列表自动滚动到底部，用户主动上滚查看历史时不强制滚动。
+消息列表 SHALL 自动滚动到底部，用户主动上滚查看历史时不强制滚动。
 
 #### Scenario: 新消息自动滚动
 
@@ -285,7 +291,7 @@ AI 响应通过 SSE 实时推送到前端，前端流式渲染。
 
 ### Requirement: 消息错误与重试
 
-发送失败的消息展示错误状态，用户可点击重试。
+发送失败的消息 SHALL 展示错误状态，用户可点击重试。
 
 #### Scenario: 用户消息发送失败
 
@@ -313,7 +319,7 @@ AI 响应通过 SSE 实时推送到前端，前端流式渲染。
 
 ### Requirement: 输入框自适应高度
 
-Textarea 输入框根据内容自动调整高度，最大 150px。
+Textarea 输入框 SHALL 根据内容自动调整高度，最大 150px。
 
 #### Scenario: 单行输入
 
@@ -333,7 +339,7 @@ Textarea 输入框根据内容自动调整高度，最大 150px。
 
 ### Requirement: 键盘快捷键
 
-输入框支持键盘快捷键操作。
+输入框 SHALL 支持键盘快捷键操作。
 
 #### Scenario: Enter 发送
 
@@ -347,7 +353,7 @@ Textarea 输入框根据内容自动调整高度，最大 150px。
 
 ### Requirement: 专家选择欢迎页
 
-工作区在无活跃会话时展示欢迎页，引导用户选择专家。
+工作区在无活跃会话时 SHALL 展示欢迎页，引导用户选择专家。
 
 #### Scenario: 欢迎页展示
 
@@ -364,7 +370,7 @@ Textarea 输入框根据内容自动调整高度，最大 150px。
 
 ### Requirement: 侧栏折叠与持久化
 
-工作区左右侧栏支持折叠/展开，折叠状态持久化到 localStorage。
+工作区左右侧栏 SHALL 支持折叠/展开，折叠状态持久化到 localStorage。
 
 #### Scenario: 折叠左侧栏
 

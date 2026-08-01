@@ -1,4 +1,10 @@
-## ADDED Requirements
+# cluster-mode Specification
+
+## Purpose
+
+Oceanus 后端 Cluster 多进程能力：通过 Node.js 原生 cluster 模块按 CPU 核心数 fork Worker 进程，支持优雅退出、Worker 意外退出自动重启与健康检查。
+
+## Requirements
 
 ### Requirement: Cluster 模式启动
 

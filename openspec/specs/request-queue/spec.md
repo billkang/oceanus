@@ -1,4 +1,10 @@
-## ADDED Requirements
+# request-queue Specification
+
+## Purpose
+
+Oceanus 后端请求队列能力：LLM 并发超限时将 `/chat` 请求排入 FIFO 队列，支持取消排队、位置更新事件，并在单进程/Cluster 模式下均正常工作。
+
+## Requirements
 
 ### Requirement: 请求入队与 FIFO 消费
 

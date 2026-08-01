@@ -1,4 +1,10 @@
-## ADDED Requirements
+# prisma-pool-tuning Specification
+
+## Purpose
+
+Oceanus 后端 Prisma 连接池调优能力：显式配置 `connection_limit` 替代默认自动计算值，并在启动时校验连接数是否在合理范围内。
+
+## Requirements
 
 ### Requirement: Prisma 连接池显式配置
 

@@ -1,4 +1,10 @@
-## ADDED Requirements
+# rate-limiting Specification
+
+## Purpose
+
+Oceanus 后端速率限制能力：对 `/chat` 请求提供全局与用户级限流，返回标准化 429 响应，并在 SSE 流内透传限流错误事件。
+
+## Requirements
 
 ### Requirement: 全局速率限制
 

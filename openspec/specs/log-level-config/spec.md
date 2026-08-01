@@ -1,5 +1,9 @@
 # Spec: Log Level Config
 
+## Purpose
+
+日志级别配置能力：通过 `LOG_LEVEL` 环境变量控制 Pino 日志输出级别，并将 Pino 生产环境的输出目标改为 stdout。
+
 ## Requirements
 
 ### Requirement: LOG_LEVEL 环境变量
