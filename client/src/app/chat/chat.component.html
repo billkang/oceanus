@@ -105,6 +105,19 @@
       <span class="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse flex-shrink-0"></span>
       <span class="text-xs font-medium text-indigo-600/90">{{ aiStatus() || '&nbsp;' }}</span>
     </div>
+    <!-- 限额命中提示横幅 -->
+    @if (limitNotice()) {
+      <div class="max-w-3xl mx-auto mb-2">
+        <div
+          class="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800"
+          role="status"
+          aria-live="polite"
+        >
+          <span class="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0"></span>
+          <span>{{ limitNotice() }}</span>
+        </div>
+      </div>
+    }
     <div class="max-w-3xl mx-auto">
       <div
         class="relative flex items-end gap-1.5 bg-white/70 backdrop-blur-sm border rounded-xl focus-within:border-indigo-300 focus-within:ring-1 focus-within:ring-indigo-300 transition-all duration-200 px-1.5 py-1.5"

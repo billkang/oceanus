@@ -54,6 +54,10 @@ interface QueuePositionData {
   position: number;
   totalBefore: number;
 }
+/** 限额命中事件数据（轮次 / 预算共用，结构相同） */
+interface LimitReachedData {
+  limit: number;
+}
 
 /* ── 历史消息数据类型 ── */
 interface ContentBlock {
@@ -99,6 +103,8 @@ export class ChatComponent implements OnDestroy {
   readonly canSend = computed(() => this.chatModel().message.trim().length > 0 && !this.isStreaming());
   readonly queuePosition = signal<number | null>(null);
   readonly estimatedWait = signal('');
+  /** 限额命中提示（内联横幅文案，下次发送清空） */
+  readonly limitNotice = signal('');
 
   private messageIdCounter = 0;
   /** 用户是否主动滚到了历史区域（不在底部） */
@@ -122,6 +128,9 @@ export class ChatComponent implements OnDestroy {
       const sid = this.sessionId();
       if (sid === this._previousSessionId) return;
       this._previousSessionId = sid;
+
+      // 切换会话时清空上一会话的限额提示横幅
+      this.limitNotice.set('');
 
       if (!sid || sid === '__new__') {
         this._streamSdkSessionId = null;
@@ -363,6 +372,19 @@ export class ChatComponent implements OnDestroy {
         this.estimatedWait.set('');
         break;
 
+      case SseEventType.TurnLimitReached:
+        this.limitNotice.set(
+          `已达到本次轮次上限（${(event.data as unknown as LimitReachedData).limit} 轮），你可以继续发送消息`,
+        );
+        break;
+
+      case SseEventType.BudgetLimitReached:
+        // Number() 防御：limit 缺失 / 非数字时降级为 "NaN" 而不抛错
+        this.limitNotice.set(
+          `已达到本次预算上限（$${Number((event.data as unknown as LimitReachedData).limit).toFixed(2)}），你可以继续发送消息`,
+        );
+        break;
+
       default:
         break;
     }
@@ -372,6 +394,9 @@ export class ChatComponent implements OnDestroy {
   send(): void {
     const text = this.chatModel().message.trim();
     if (!text) return;
+
+    // 新发送时清空限额提示横幅
+    this.limitNotice.set('');
 
     // 立即标记为流式中，确保 session_created 触发 effect 时
     // isStreaming() === true，保护内存中的消息不被 loadHistory 清空
@@ -460,6 +485,9 @@ export class ChatComponent implements OnDestroy {
       }
     }
     if (!text) return;
+
+    // 重试即新 query，清空限额提示横幅
+    this.limitNotice.set('');
 
     // 立即标记为流式中，与 send() 保持一致
     this.isStreaming.set(true);

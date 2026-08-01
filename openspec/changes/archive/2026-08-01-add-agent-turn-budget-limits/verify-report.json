@@ -1,0 +1,48 @@
+{
+  "change": "add-agent-turn-budget-limits",
+  "tasks": { "total": 14, "passed": 14 },
+  "build": {
+    "server": { "command": "pnpm --filter @oceanus/server build", "exitCode": 0, "passed": true, "duration": 2.72 },
+    "client": { "command": "pnpm --filter @oceanus/client build", "exitCode": 0, "passed": true, "duration": 4.09 }
+  },
+  "lint": {
+    "server": { "command": "pnpm --filter @oceanus/server lint", "exitCode": 0, "passed": true },
+    "client": { "command": "pnpm --filter @oceanus/client lint", "exitCode": 0, "passed": true }
+  },
+  "tests": {
+    "server": {
+      "command": "pnpm --filter @oceanus/server test",
+      "exitCode": 0,
+      "passed": true,
+      "total": 154,
+      "passed": 154,
+      "failed": 0,
+      "duration": 1.68
+    },
+    "client": {
+      "command": "pnpm --filter @oceanus/client test",
+      "exitCode": 0,
+      "passed": true,
+      "total": 124,
+      "passed": 124,
+      "failed": 0,
+      "duration": 4.21
+    }
+  },
+  "acCoverage": {
+    "total": 15,
+    "covered": 14,
+    "uncovered": [
+      "AC-9（豁免）: 限额命中后 resume 继续聊天、轮次/预算按新 query 重新计 — 会话保持 active 属运行时状态，单元测试无法断言，低风险走手动验证"
+    ]
+  },
+  "review": {
+    "findings": 9,
+    "blockers": 0,
+    "warnings": 0,
+    "suggestions": 0,
+    "resolved": 9,
+    "reportPath": "会话内 sub-agent 审查（reef-review-backend / reef-review-frontend），无独立文件"
+  },
+  "summary": "PASSED"
+}

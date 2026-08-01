@@ -27,6 +27,10 @@ import { FileSystemSessionStore } from './stores/file-system.store';
  */
 @Injectable()
 export class AgentService {
+  /** 轮次 / 预算上限默认值（无效配置一律回退） */
+  private static readonly DEFAULT_MAX_TURNS = 15;
+  private static readonly DEFAULT_MAX_BUDGET_USD = 1.0;
+
   private readonly available: boolean;
   private readonly sessionStore: FileSystemSessionStore;
 
@@ -49,6 +53,46 @@ export class AgentService {
   /** AI 服务是否已配置（ANTHROPIC_API_KEY 或 KeyPool 中有 Key 即可用） */
   isAvailable(): boolean {
     return this.available || this.keyPool.getKeyCount() > 0;
+  }
+
+  /**
+   * 解析环境变量上限值
+   * 未配置 / 空值：静默回退默认（正常状态）
+   * 非数字 / 0 / 负数（integer=true 时含非整数）：WARN 提示配置非法后回退默认（永不进入无限状态）
+   */
+  private parseLimit(raw: string | undefined, fallback: number, label: string, integer = false): number {
+    if (raw === undefined || raw.trim().length === 0) {
+      return fallback;
+    }
+    const n = Number(raw);
+    const valid = Number.isFinite(n) && n > 0 && (!integer || Number.isInteger(n));
+    if (valid) {
+      return n;
+    }
+    this.logger.warn(`${label} 配置值非法（${raw}），使用默认值 ${fallback}`);
+    return fallback;
+  }
+
+  /** 解析生效的轮次 / 预算上限（每次 query 调用，全局默认） */
+  private resolveAgentLimits(): { maxTurns: number; maxBudgetUsd: number } {
+    return {
+      maxTurns: this.parseLimit(
+        this.configService.get<string>('AGENT_MAX_TURNS'),
+        AgentService.DEFAULT_MAX_TURNS,
+        'AGENT_MAX_TURNS',
+        true,
+      ),
+      maxBudgetUsd: this.parseLimit(
+        this.configService.get<string>('AGENT_MAX_BUDGET_USD'),
+        AgentService.DEFAULT_MAX_BUDGET_USD,
+        'AGENT_MAX_BUDGET_USD',
+      ),
+    };
+  }
+
+  /** 当前生效的轮次 / 预算上限（供 ChatService 命中限额时取 limit 值） */
+  getAgentLimits(): { maxTurns: number; maxBudgetUsd: number } {
+    return this.resolveAgentLimits();
   }
 
   /**
@@ -76,6 +120,8 @@ export class AgentService {
     }
 
     try {
+      const { maxTurns, maxBudgetUsd } = this.resolveAgentLimits();
+
       const q = query({
         prompt: content,
         options: {
@@ -107,7 +153,8 @@ export class AgentService {
           model: 'claude-sonnet-5',
           effort: 'low',
           thinking: { type: 'enabled', budgetTokens: 4000 },
-          maxTurns: 20,
+          maxTurns,
+          maxBudgetUsd,
           ...this.buildLangfuseHooks(),
         },
       });

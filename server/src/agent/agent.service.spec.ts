@@ -45,6 +45,9 @@ describe('AgentService', () => {
   const mockConfig = (apiKey?: string) =>
     ({ get: (key: string) => (key === 'ANTHROPIC_API_KEY' ? apiKey : undefined) }) as ConfigService;
 
+  // 可返回任意 env 键的配置工厂
+  const mockEnvConfig = (values: Record<string, string>) => ({ get: (key: string) => values[key] }) as ConfigService;
+
   afterEach(() => {
     vi.clearAllMocks();
   });
@@ -64,6 +67,60 @@ describe('AgentService', () => {
       mockKeyPool.getKeyCount.mockReturnValue(0);
       const service = new AgentService(mockLogger, mockConfig(undefined), nullLangfuse, mockKeyPool as any);
       expect(service.isAvailable()).toBe(false);
+    });
+  });
+
+  describe('getAgentLimits', () => {
+    it('未配置时应回退默认 15 / 1.00', () => {
+      const service = new AgentService(mockLogger, mockEnvConfig({}), nullLangfuse, mockKeyPool as any);
+      expect(service.getAgentLimits()).toEqual({ maxTurns: 15, maxBudgetUsd: 1.0 });
+      // 未配置 / 空属于正常回退，不输出 WARN
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(expect.stringContaining('AGENT_MAX_TURNS'));
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(expect.stringContaining('AGENT_MAX_BUDGET_USD'));
+    });
+
+    it('空值 / 非数字 / 0 / 负数应回退默认', () => {
+      const config = mockEnvConfig({ AGENT_MAX_TURNS: 'abc', AGENT_MAX_BUDGET_USD: '0' });
+      const service = new AgentService(mockLogger, config, nullLangfuse, mockKeyPool as any);
+      expect(service.getAgentLimits()).toEqual({ maxTurns: 15, maxBudgetUsd: 1.0 });
+      // 非法配置值必须输出 WARN 日志（spec 场景要求）
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('AGENT_MAX_TURNS'));
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('AGENT_MAX_BUDGET_USD'));
+    });
+
+    it('合法值应生效', () => {
+      const config = mockEnvConfig({ AGENT_MAX_TURNS: '20', AGENT_MAX_BUDGET_USD: '2.5' });
+      const service = new AgentService(mockLogger, config, nullLangfuse, mockKeyPool as any);
+      expect(service.getAgentLimits()).toEqual({ maxTurns: 20, maxBudgetUsd: 2.5 });
+    });
+
+    it('maxTurns 非整数（15.5）应视为非法回退默认', () => {
+      const config = mockEnvConfig({ AGENT_MAX_TURNS: '15.5', AGENT_MAX_BUDGET_USD: '2.5' });
+      const service = new AgentService(mockLogger, config, nullLangfuse, mockKeyPool as any);
+      expect(service.getAgentLimits()).toEqual({ maxTurns: 15, maxBudgetUsd: 2.5 });
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('AGENT_MAX_TURNS'));
+    });
+
+    it('query options 应包含解析后的 maxTurns 与 maxBudgetUsd', async () => {
+      const mockGenerate = (async function* () {
+        yield {
+          type: 'stream_event' as const,
+          event: { type: 'content_block_start', content_block: { type: 'text', text: 'OK' } },
+        };
+      })();
+      vi.mocked(sdk.query).mockReturnValue(mockGenerate as any);
+
+      const config = mockEnvConfig({
+        ANTHROPIC_API_KEY: 'test-key',
+        AGENT_MAX_TURNS: '20',
+        AGENT_MAX_BUDGET_USD: '2.5',
+      });
+      const service = new AgentService(mockLogger, config, nullLangfuse, mockKeyPool as any);
+      await service.sendMessage('hello');
+
+      const queryOptions = vi.mocked(sdk.query).mock.calls[0][0].options;
+      expect(queryOptions?.maxTurns).toBe(20);
+      expect(queryOptions?.maxBudgetUsd).toBe(2.5);
     });
   });
 

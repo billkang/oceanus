@@ -1,6 +1,7 @@
 import type {
   SDKMessage,
   SDKPromptSuggestionMessage,
+  SDKResultError,
   SDKResultSuccess,
   SDKSystemMessage,
 } from '@anthropic-ai/claude-agent-sdk';
@@ -139,6 +140,12 @@ export class ChatService {
       // 累加响应文本（用于 PRD 提取和标题生成）
       let responseText = '';
       let tokenUsage: { inputTokens?: number; outputTokens?: number } | undefined;
+      /** 限额命中标志：'turns' | 'budget' | null */
+      let limitHit: 'turns' | 'budget' | null = null;
+      /** 是否已显式发送 error 事件（用于抑制 SDK throw 路径的重复 error） */
+      let errorEmitted = false;
+      /** 本次 query 生效的限额（开始时解析一次，命中时复用，避免重复读 env） */
+      const limits = this.agentService.getAgentLimits();
 
       // 内容追踪器，在 mapper 和 main loop 之间传递块级状态
       const tracker = new ContentTracker();
@@ -201,6 +208,46 @@ export class ChatService {
             continue;
           }
 
+          // 处理 result 错误消息：限额命中发专用事件；其他错误子类型按通用 error 处理
+          if (msg.type === 'result') {
+            const resultMsg = msg as SDKResultError;
+            const isTurnLimit = resultMsg.subtype === 'error_max_turns';
+            const isBudgetLimit = resultMsg.subtype === 'error_max_budget_usd';
+
+            // 命中轮次 / 预算上限：发专用事件 + 记录日志 + 置 flag 后受控结束
+            if (isTurnLimit || isBudgetLimit) {
+              const limit = isTurnLimit ? limits.maxTurns : limits.maxBudgetUsd;
+
+              onEvent({
+                type: isTurnLimit ? SseEventType.TurnLimitReached : SseEventType.BudgetLimitReached,
+                data: { limit },
+              });
+
+              if (capturedSdkSessionId) {
+                this.sessionLogService.log(
+                  'default',
+                  capturedSdkSessionId,
+                  isTurnLimit ? 'Turn limit reached' : 'Budget limit reached',
+                  { limit },
+                );
+              }
+
+              limitHit = isTurnLimit ? 'turns' : 'budget';
+              break;
+            }
+
+            // 其他错误子类型（error_during_execution 等）：显式发 error 事件，避免依赖 SDK throw 路径
+            if (resultMsg.is_error) {
+              const errMsg = resultMsg.errors?.[0] ?? 'Agent 执行失败';
+              onEvent({ type: SseEventType.Error, data: { message: errMsg } });
+              if (capturedSdkSessionId) {
+                this.sessionLogService.log('default', capturedSdkSessionId, 'Stream error', { error: errMsg });
+              }
+              errorEmitted = true;
+              break;
+            }
+          }
+
           const events = this.mapSdkMessageToSseEvents(msg, tracker);
           for (const event of events) {
             if (event.type === SseEventType.MessageDelta) {
@@ -225,18 +272,26 @@ export class ChatService {
           const round = (this.messageRoundCount.get(finalSessionId) ?? 0) + 1;
           this.messageRoundCount.set(finalSessionId, round);
 
-          if (responseText.trim().length > 0) {
+          if (!limitHit && responseText.trim().length > 0) {
             this.langfuseService.recordGeneration(finalSessionId, content, responseText, tokenUsage);
           }
 
           await this.langfuseService.flushTrace(finalSessionId);
 
-          await this.afterStreamComplete(finalSessionId, onEvent, responseText);
+          // 限额命中 / 已发 error 后跳过标题更新与 PRD 提取
+          if (!limitHit && !errorEmitted) {
+            await this.afterStreamComplete(finalSessionId, onEvent, responseText);
+          }
         }
 
         onEvent({ type: SseEventType.StreamComplete, data: {} });
       } catch (error) {
         const errMsg = (error as Error).message;
+        // 限额命中已发专用事件 / error 已在循环内显式发送：后处理（flushTrace 等）抛错仅记录 WARN，避免重复 error
+        if (limitHit || errorEmitted) {
+          this.logger.warn(`Chat stream error suppressed (${limitHit ? 'limit' : 'error already emitted'}): ${errMsg}`);
+          return;
+        }
         this.logger.error(`Chat stream error: ${errMsg}`);
         if (capturedSdkSessionId) {
           this.sessionLogService.log('default', capturedSdkSessionId, 'Stream error', { error: errMsg });
