@@ -151,7 +151,7 @@ describe('ChatService', () => {
 
       await service.sendAndStream({ content: 'hello', onEvent: vi.fn() });
 
-      expect(mockLangfuseService.createTrace).toHaveBeenCalledWith(SDK_SESSION_ID);
+      expect(mockLangfuseService.createTrace).toHaveBeenCalledWith(SDK_SESSION_ID, undefined, undefined);
     });
 
     it('首条消息 session_id 应在后续消息中传递', async () => {

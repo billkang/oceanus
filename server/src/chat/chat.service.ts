@@ -180,7 +180,7 @@ export class ChatService {
               const numericProjectId = projectId ? Number(projectId) : 1;
               await this.sessionService.create(numericProjectId, capturedSdkSessionId);
 
-              this.langfuseService.createTrace(capturedSdkSessionId);
+              this.langfuseService.createTrace(capturedSdkSessionId, undefined, model);
 
               onEvent({
                 type: SseEventType.SessionCreated,

@@ -369,6 +369,29 @@ describe('AgentService', () => {
       expect((optionsArg as { hooks?: Record<string, unknown> }).hooks?.['PostToolUseFailure']).toBeDefined();
       expect((optionsArg as { hooks?: Record<string, unknown> }).hooks?.['SessionEnd']).toBeDefined();
     });
+
+    it('SessionStart hook 应把所选 model 传给 createTrace', async () => {
+      const mockGenerate = (async function* () {
+        yield {
+          type: 'stream_event' as const,
+          event: { type: 'content_block_start', content_block: { type: 'text', text: 'OK' } },
+        };
+      })();
+      vi.mocked(sdk.query).mockReturnValue(mockGenerate as any);
+
+      const langfuse = createMockLangfuse();
+      const service = new AgentService(mockLogger, mockConfig(), langfuse, mockKeyPool as any, createMockRegistry());
+      await service.sendMessage('hello', { model: 'kimi' });
+
+      const optionsArg = vi.mocked(sdk.query).mock.calls[0][0].options;
+      const sessionStartHooks = (
+        optionsArg as { hooks?: { SessionStart?: { hooks: ((input: unknown) => Promise<unknown>)[] }[] } }
+      ).hooks?.SessionStart;
+      expect(sessionStartHooks).toBeDefined();
+      await sessionStartHooks?.[0]?.hooks[0]({ session_id: 'sid' });
+
+      expect(langfuse.createTrace).toHaveBeenCalledWith('sid', undefined, 'kimi-k2.7-code');
+    });
   });
 
   describe('getSessionMessages', () => {

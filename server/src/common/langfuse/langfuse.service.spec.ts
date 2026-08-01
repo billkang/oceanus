@@ -2,6 +2,21 @@ import type { ConfigService } from '@nestjs/config';
 import { Logger } from 'nestjs-pino';
 import { LangfuseService } from './langfuse.service';
 
+/** 捕获 Langfuse client.trace() 的入参（mock 模块层面） */
+let capturedTrace: { name?: string; sessionId?: string; tags?: string[] } | undefined;
+
+vi.mock('langfuse', () => {
+  return {
+    Langfuse: class {
+      trace(opts: { name?: string; sessionId?: string; tags?: string[] }) {
+        capturedTrace = opts;
+        return { id: 'trace-id', span: vi.fn(), generation: vi.fn() };
+      }
+      flushAsync = vi.fn().mockResolvedValue(undefined);
+    },
+  };
+});
+
 describe('LangfuseService', () => {
   const mockLogger = { log: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as unknown as Logger;
 
@@ -16,6 +31,7 @@ describe('LangfuseService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    capturedTrace = undefined;
   });
 
   describe('graceful degradation', () => {
@@ -32,9 +48,7 @@ describe('LangfuseService', () => {
       service.onModuleInit();
 
       expect(service.isAvailable).toBe(false);
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('LANGFUSE_PUBLIC_KEY'),
-      );
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('LANGFUSE_PUBLIC_KEY'));
     });
 
     it('不可用时所有方法不应抛异常', async () => {
@@ -55,6 +69,35 @@ describe('LangfuseService', () => {
     it('不可用时 isAvailable 应为 false', () => {
       const service = createService({});
       expect(service.isAvailable).toBe(false);
+    });
+  });
+
+  describe('createTrace', () => {
+    it('传入 model 时 trace tags 应含 model:<model>', () => {
+      const service = createService({
+        LANGFUSE_BASE_URL: 'http://localhost:3000',
+        LANGFUSE_PUBLIC_KEY: 'pk',
+        LANGFUSE_SECRET_KEY: 'sk',
+      });
+      service.onModuleInit();
+
+      service.createTrace('sid', undefined, 'kimi');
+
+      expect(capturedTrace?.tags).toContain('model:kimi');
+    });
+
+    it('未传 model 时 tags 不应含 model:<model>', () => {
+      const service = createService({
+        LANGFUSE_BASE_URL: 'http://localhost:3000',
+        LANGFUSE_PUBLIC_KEY: 'pk',
+        LANGFUSE_SECRET_KEY: 'sk',
+      });
+      service.onModuleInit();
+
+      service.createTrace('sid', undefined);
+
+      expect(capturedTrace?.tags).not.toContain('model:');
+      expect(capturedTrace?.tags).toEqual(['oceanus']);
     });
   });
 

@@ -153,7 +153,7 @@ export class AgentService {
           thinking: { type: 'enabled', budgetTokens: 4000 },
           maxTurns,
           maxBudgetUsd,
-          ...this.buildLangfuseHooks(),
+          ...this.buildLangfuseHooks(provider.modelId),
         },
       });
 
@@ -174,8 +174,9 @@ export class AgentService {
 
   /**
    * 构建 Langfuse 可观测性 hooks
+   * @param model 本次 query 所选 provider 的 modelId，用于 trace 标记
    */
-  private buildLangfuseHooks(): Record<string, unknown> {
+  private buildLangfuseHooks(model: string): Record<string, unknown> {
     const lf = this.langfuseService;
     if (!lf || !lf.isAvailable) return {};
 
@@ -186,7 +187,7 @@ export class AgentService {
             hooks: [
               (input: SessionStartHookInput) => {
                 if (input?.session_id) {
-                  lf.createTrace(input.session_id);
+                  lf.createTrace(input.session_id, undefined, model);
                 }
                 return Promise.resolve({ continue: true });
               },

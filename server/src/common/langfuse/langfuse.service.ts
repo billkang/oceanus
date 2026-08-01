@@ -63,14 +63,16 @@ export class LangfuseService implements OnModuleInit {
    * 为一次 Agent query 创建 Traces
    * @param sdkSessionId SDK 会话 ID
    * @param projectId 可选项目 ID，用于 tags
+   * @param model 可选模型名，用于 tags
    * @returns traceId，失败返回 null
    */
-  createTrace(sdkSessionId: string, projectId?: string): string | null {
+  createTrace(sdkSessionId: string, projectId?: string, model?: string): string | null {
     if (!this.available || !this.client) return null;
 
     try {
       const tags = ['oceanus'];
       if (projectId) tags.push(`project:${projectId}`);
+      if (model) tags.push(`model:${model}`);
 
       const trace = this.client.trace({
         name: 'oceanus-agent-query',
@@ -88,13 +90,7 @@ export class LangfuseService implements OnModuleInit {
   /**
    * 为工具调用创建 Span
    */
-  createToolSpan(
-    sdkSessionId: string,
-    toolName: string,
-    input?: unknown,
-    output?: unknown,
-    durationMs?: number,
-  ): void {
+  createToolSpan(sdkSessionId: string, toolName: string, input?: unknown, output?: unknown, durationMs?: number): void {
     if (!this.available) return;
 
     try {
