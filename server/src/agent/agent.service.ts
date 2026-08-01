@@ -11,6 +11,7 @@ import { Logger } from 'nestjs-pino';
 import * as path from 'node:path';
 import { LangfuseService } from '../common/langfuse/langfuse.service';
 import { KeyPoolService } from '../common/key-pool/key-pool.service';
+import { ModelRegistryService } from '../common/model-registry/model-registry.service';
 import { FileSystemSessionStore } from './stores/file-system.store';
 
 /**
@@ -20,10 +21,10 @@ import { FileSystemSessionStore } from './stores/file-system.store';
  * 仅负责 SDK query() 的创建和生命周期管理。
  * 会话连续性（首条/续传）通过传入 resume 参数控制。
  *
- * API Key 通过 KeyPoolService 管理：支持多 Key Least-Used 轮换，
- * 调用 query() 前设置 process.env.ANTHROPIC_API_KEY 实现 Key 注入。
- * 由于 RequestQueue 限制了最大并发（MAX_CONCURRENT_LLM=3），
- * 环境变量切换的竞态风险在可控范围内。
+ * 模型选择通过 ModelRegistryService：每次调用按所选 provider 解析
+ * modelId 与 Key，并经由 query() 的 env 选项逐调用注入 provider 级
+ * 环境变量（ANTHROPIC_BASE_URL / ANTHROPIC_API_KEY / ANTHROPIC_SMALL_FAST_MODEL），
+ * 不再突变全局 process.env，消除并发竞态。
  */
 @Injectable()
 export class AgentService {
@@ -31,7 +32,6 @@ export class AgentService {
   private static readonly DEFAULT_MAX_TURNS = 15;
   private static readonly DEFAULT_MAX_BUDGET_USD = 1.0;
 
-  private readonly available: boolean;
   private readonly sessionStore: FileSystemSessionStore;
 
   constructor(
@@ -39,20 +39,15 @@ export class AgentService {
     private readonly configService: ConfigService,
     private readonly langfuseService: LangfuseService,
     private readonly keyPool: KeyPoolService,
+    private readonly modelRegistry: ModelRegistryService,
   ) {
-    const apiKey = this.configService.get<string>('ANTHROPIC_API_KEY');
-    this.available = !!apiKey;
-    if (!this.available) {
-      this.logger.warn('ANTHROPIC_API_KEY 未配置，AI 功能不可用');
-    }
-
     const storeDir = path.resolve(process.cwd(), 'data', 'sessions');
     this.sessionStore = new FileSystemSessionStore(storeDir);
   }
 
-  /** AI 服务是否已配置（ANTHROPIC_API_KEY 或 KeyPool 中有 Key 即可用） */
+  /** AI 服务是否可用（委托注册表：注册表有效 且 默认 provider Key 可解析） */
   isAvailable(): boolean {
-    return this.available || this.keyPool.getKeyCount() > 0;
+    return this.modelRegistry.isAvailable();
   }
 
   /**
@@ -99,20 +94,17 @@ export class AgentService {
    * 发送消息并获取 SDK 流式响应
    *
    * @param content - 用户消息内容
-   * @param options - resume: SDK 会话 ID（续传时必传，首条不传）
+   * @param options - resume: SDK 会话 ID（续传时必传，首条不传）；model: provider 逻辑名（缺省用默认 provider）
    * @returns stream + interrupt
    */
-  async sendMessage(content: string, options?: { resume?: string }) {
+  async sendMessage(content: string, options?: { resume?: string; model?: string }) {
     if (!this.isAvailable()) {
       throw new Error('AI 服务未配置');
     }
 
-    this.logger.debug(`Sending message (resume=${options?.resume ?? 'new session'})`);
-
-    // 从 KeyPool 选择 API Key
-    const selectedKey = await this.keyPool.select();
-    const originalKey = process.env.ANTHROPIC_API_KEY;
-    process.env.ANTHROPIC_API_KEY = selectedKey;
+    // 解析所选 provider（含 modelId 与 Key）；未知/不可用抛 400
+    const provider = await this.modelRegistry.resolveProvider(options?.model);
+    this.logger.debug(`Sending message (resume=${options?.resume ?? 'new session'}, model=${provider.name})`);
 
     const sessionOptions: Record<string, unknown> = {};
     if (options?.resume) {
@@ -150,7 +142,13 @@ export class AgentService {
           },
           skills: 'all',
           settingSources: ['project'],
-          model: 'claude-sonnet-5',
+          model: provider.modelId,
+          env: {
+            ...process.env,
+            ANTHROPIC_BASE_URL: provider.baseUrl,
+            ANTHROPIC_API_KEY: provider.apiKey,
+            ANTHROPIC_SMALL_FAST_MODEL: provider.smallFastModel,
+          },
           effort: 'low',
           thinking: { type: 'enabled', budgetTokens: 4000 },
           maxTurns,
@@ -164,13 +162,13 @@ export class AgentService {
         interrupt: () => q.interrupt(),
       };
     } catch (err) {
-      // 标记 Key 故障
-      this.keyPool.markFailure(selectedKey).catch((e) => {
-        this.logger.error(`Failed to mark key failure: ${e}`);
-      });
+      // 仅 keyPool 来源的 Key 标记故障（单 Key provider 无轮换语义）
+      if (provider.keySource === 'pool') {
+        this.keyPool.markFailure(provider.apiKey).catch((e) => {
+          this.logger.error(`Failed to mark key failure: ${e}`);
+        });
+      }
       throw err;
-    } finally {
-      process.env.ANTHROPIC_API_KEY = originalKey;
     }
   }
 

@@ -4,11 +4,14 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
   deleteSession: vi.fn(),
 }));
 
+import { BadRequestException } from '@nestjs/common';
 import { Logger } from 'nestjs-pino';
 import { AgentService } from './agent.service';
 import type { ConfigService } from '@nestjs/config';
 import * as sdk from '@anthropic-ai/claude-agent-sdk';
 import { LangfuseService } from '../common/langfuse/langfuse.service';
+import { ModelRegistryService } from '../common/model-registry/model-registry.service';
+import { ResolvedProvider } from '../common/model-registry/model-registry.types';
 
 // LangfuseService 空实现（默认注入，isAvailable=false 不执行实际操作）
 const nullLangfuse = {
@@ -39,11 +42,45 @@ const mockKeyPool = {
   getKeyCount: vi.fn().mockReturnValue(1),
 };
 
+// 模型注册表 mock — 默认 deepseek（keyPool），kimi（env Key）
+const deepseekProvider: ResolvedProvider = {
+  name: 'deepseek',
+  displayName: 'DeepSeek',
+  baseUrl: 'https://api.deepseek.com/anthropic',
+  modelId: 'deepseek-v4-flash',
+  smallFastModel: 'deepseek-v4-flash',
+  apiKey: 'pool-key-1',
+  keySource: 'pool',
+};
+
+const kimiProvider: ResolvedProvider = {
+  name: 'kimi',
+  displayName: 'Kimi K2',
+  baseUrl: 'https://api.moonshot.ai/anthropic',
+  modelId: 'kimi-k2.7-code',
+  smallFastModel: 'kimi-k2.5',
+  apiKey: 'kimi-key-1',
+  keySource: 'env',
+};
+
+const createMockRegistry = (overrides: Record<string, unknown> = {}) =>
+  ({
+    isAvailable: vi.fn().mockReturnValue(true),
+    resolveProvider: vi
+      .fn()
+      .mockImplementation(async (model?: string) => (model === 'kimi' ? kimiProvider : deepseekProvider)),
+    listModels: vi.fn().mockReturnValue([
+      { name: 'deepseek', displayName: 'DeepSeek', default: true },
+      { name: 'kimi', displayName: 'Kimi K2', default: false },
+    ]),
+    ...overrides,
+  }) as unknown as ModelRegistryService;
+
 describe('AgentService', () => {
   const mockLogger = { log: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as unknown as Logger;
 
-  const mockConfig = (apiKey?: string) =>
-    ({ get: (key: string) => (key === 'ANTHROPIC_API_KEY' ? apiKey : undefined) }) as ConfigService;
+  // 仅用于 env 读取（available 语义已委托注册表）
+  const mockConfig = () => ({ get: (_key: string) => undefined }) as ConfigService;
 
   // 可返回任意 env 键的配置工厂
   const mockEnvConfig = (values: Record<string, string>) => ({ get: (key: string) => values[key] }) as ConfigService;
@@ -53,50 +90,55 @@ describe('AgentService', () => {
   });
 
   describe('isAvailable', () => {
-    it('ANTHROPIC_API_KEY 配置时应返回 true', () => {
-      const service = new AgentService(mockLogger, mockConfig('test-key'), nullLangfuse, mockKeyPool as any);
+    it('注册表可用时返回 true', () => {
+      const service = new AgentService(
+        mockLogger,
+        mockConfig(),
+        nullLangfuse,
+        mockKeyPool as any,
+        createMockRegistry(),
+      );
       expect(service.isAvailable()).toBe(true);
     });
 
-    it('ANTHROPIC_API_KEY 未配置但 KeyPool 有 Key 时应返回 true', () => {
-      const service = new AgentService(mockLogger, mockConfig(undefined), nullLangfuse, mockKeyPool as any);
-      expect(service.isAvailable()).toBe(true);
-    });
-
-    it('ANTHROPIC_API_KEY 和 KeyPool 均空时应返回 false', () => {
-      mockKeyPool.getKeyCount.mockReturnValue(0);
-      const service = new AgentService(mockLogger, mockConfig(undefined), nullLangfuse, mockKeyPool as any);
+    it('注册表不可用时返回 false', () => {
+      const registry = createMockRegistry({ isAvailable: vi.fn().mockReturnValue(false) });
+      const service = new AgentService(mockLogger, mockConfig(), nullLangfuse, mockKeyPool as any, registry);
       expect(service.isAvailable()).toBe(false);
     });
   });
 
   describe('getAgentLimits', () => {
     it('未配置时应回退默认 15 / 1.00', () => {
-      const service = new AgentService(mockLogger, mockEnvConfig({}), nullLangfuse, mockKeyPool as any);
+      const service = new AgentService(
+        mockLogger,
+        mockEnvConfig({}),
+        nullLangfuse,
+        mockKeyPool as any,
+        createMockRegistry(),
+      );
       expect(service.getAgentLimits()).toEqual({ maxTurns: 15, maxBudgetUsd: 1.0 });
-      // 未配置 / 空属于正常回退，不输出 WARN
       expect(mockLogger.warn).not.toHaveBeenCalledWith(expect.stringContaining('AGENT_MAX_TURNS'));
       expect(mockLogger.warn).not.toHaveBeenCalledWith(expect.stringContaining('AGENT_MAX_BUDGET_USD'));
     });
 
     it('空值 / 非数字 / 0 / 负数应回退默认', () => {
       const config = mockEnvConfig({ AGENT_MAX_TURNS: 'abc', AGENT_MAX_BUDGET_USD: '0' });
-      const service = new AgentService(mockLogger, config, nullLangfuse, mockKeyPool as any);
+      const service = new AgentService(mockLogger, config, nullLangfuse, mockKeyPool as any, createMockRegistry());
       expect(service.getAgentLimits()).toEqual({ maxTurns: 15, maxBudgetUsd: 1.0 });
-      // 非法配置值必须输出 WARN 日志（spec 场景要求）
       expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('AGENT_MAX_TURNS'));
       expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('AGENT_MAX_BUDGET_USD'));
     });
 
     it('合法值应生效', () => {
       const config = mockEnvConfig({ AGENT_MAX_TURNS: '20', AGENT_MAX_BUDGET_USD: '2.5' });
-      const service = new AgentService(mockLogger, config, nullLangfuse, mockKeyPool as any);
+      const service = new AgentService(mockLogger, config, nullLangfuse, mockKeyPool as any, createMockRegistry());
       expect(service.getAgentLimits()).toEqual({ maxTurns: 20, maxBudgetUsd: 2.5 });
     });
 
     it('maxTurns 非整数（15.5）应视为非法回退默认', () => {
       const config = mockEnvConfig({ AGENT_MAX_TURNS: '15.5', AGENT_MAX_BUDGET_USD: '2.5' });
-      const service = new AgentService(mockLogger, config, nullLangfuse, mockKeyPool as any);
+      const service = new AgentService(mockLogger, config, nullLangfuse, mockKeyPool as any, createMockRegistry());
       expect(service.getAgentLimits()).toEqual({ maxTurns: 15, maxBudgetUsd: 2.5 });
       expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('AGENT_MAX_TURNS'));
     });
@@ -111,11 +153,10 @@ describe('AgentService', () => {
       vi.mocked(sdk.query).mockReturnValue(mockGenerate as any);
 
       const config = mockEnvConfig({
-        ANTHROPIC_API_KEY: 'test-key',
         AGENT_MAX_TURNS: '20',
         AGENT_MAX_BUDGET_USD: '2.5',
       });
-      const service = new AgentService(mockLogger, config, nullLangfuse, mockKeyPool as any);
+      const service = new AgentService(mockLogger, config, nullLangfuse, mockKeyPool as any, createMockRegistry());
       await service.sendMessage('hello');
 
       const queryOptions = vi.mocked(sdk.query).mock.calls[0][0].options;
@@ -138,9 +179,15 @@ describe('AgentService', () => {
       })();
       vi.mocked(sdk.query).mockReturnValue(mockGenerate as any);
 
-      const service = new AgentService(mockLogger, mockConfig('test-key'), nullLangfuse, mockKeyPool as any);
+      const service = new AgentService(
+        mockLogger,
+        mockConfig(),
+        nullLangfuse,
+        mockKeyPool as any,
+        createMockRegistry(),
+      );
       const { stream } = await service.sendMessage('帮我分析需求');
-      const events: any[] = [];
+      const events: unknown[] = [];
       for await (const msg of stream) {
         events.push(msg);
       }
@@ -158,7 +205,13 @@ describe('AgentService', () => {
       })();
       vi.mocked(sdk.query).mockReturnValue(mockGenerate as any);
 
-      const service = new AgentService(mockLogger, mockConfig('test-key'), nullLangfuse, mockKeyPool as any);
+      const service = new AgentService(
+        mockLogger,
+        mockConfig(),
+        nullLangfuse,
+        mockKeyPool as any,
+        createMockRegistry(),
+      );
       await service.sendMessage('hello');
 
       const queryOptions = vi.mocked(sdk.query).mock.calls[0][0].options;
@@ -177,7 +230,13 @@ describe('AgentService', () => {
       })();
       vi.mocked(sdk.query).mockReturnValue(mockGenerate as any);
 
-      const service = new AgentService(mockLogger, mockConfig('test-key'), nullLangfuse, mockKeyPool as any);
+      const service = new AgentService(
+        mockLogger,
+        mockConfig(),
+        nullLangfuse,
+        mockKeyPool as any,
+        createMockRegistry(),
+      );
       await service.sendMessage('继续', { resume: 'sdk-uuid-abc' });
 
       const queryOptions = vi.mocked(sdk.query).mock.calls[0][0].options;
@@ -185,9 +244,8 @@ describe('AgentService', () => {
       expect(queryOptions?.continue).toBeUndefined();
     });
 
-    it('应使用 KeyPool 选择 API Key 并在完成后恢复环境变量', async () => {
-      const originalKey = 'test-original-key';
-      process.env.ANTHROPIC_API_KEY = originalKey;
+    it('默认 provider 时 query options 应含默认 modelId 与 provider 级 env（替代全局 env 突变）', async () => {
+      delete process.env.ANTHROPIC_API_KEY;
 
       const mockGenerate = (async function* () {
         yield {
@@ -197,24 +255,99 @@ describe('AgentService', () => {
       })();
       vi.mocked(sdk.query).mockReturnValue(mockGenerate as any);
 
-      mockKeyPool.select.mockResolvedValue('pool-selected-key');
-      const service = new AgentService(mockLogger, mockConfig('test-key'), nullLangfuse, mockKeyPool as any);
+      const service = new AgentService(
+        mockLogger,
+        mockConfig(),
+        nullLangfuse,
+        mockKeyPool as any,
+        createMockRegistry(),
+      );
       await service.sendMessage('hello');
 
-      // KeyPool.select 被调用
-      expect(mockKeyPool.select).toHaveBeenCalled();
-      // SDK query 被调用（env var 在调用期间已设置）
-      expect(sdk.query).toHaveBeenCalled();
-      // 完成后恢复原始环境变量
-      expect(process.env.ANTHROPIC_API_KEY).toBe(originalKey);
-
-      process.env.ANTHROPIC_API_KEY = undefined;
+      const queryOptions = vi.mocked(sdk.query).mock.calls[0][0].options;
+      expect(queryOptions?.model).toBe('deepseek-v4-flash');
+      expect(queryOptions?.env).toMatchObject({
+        ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic',
+        ANTHROPIC_API_KEY: 'pool-key-1',
+        ANTHROPIC_SMALL_FAST_MODEL: 'deepseek-v4-flash',
+      });
+      // 不再突变全局环境变量（无副作用残留）
+      expect(process.env.ANTHROPIC_API_KEY).toBeUndefined();
     });
 
-    it('未配置 API Key 时应抛出错误', async () => {
-      const service = new AgentService(mockLogger, mockConfig(undefined), nullLangfuse, mockKeyPool as any);
+    it('指定 model=kimi 时使用 kimi 的 modelId 与 env', async () => {
+      const mockGenerate = (async function* () {
+        yield {
+          type: 'stream_event' as const,
+          event: { type: 'content_block_start', content_block: { type: 'text', text: 'OK' } },
+        };
+      })();
+      vi.mocked(sdk.query).mockReturnValue(mockGenerate as any);
+
+      const service = new AgentService(
+        mockLogger,
+        mockConfig(),
+        nullLangfuse,
+        mockKeyPool as any,
+        createMockRegistry(),
+      );
+      await service.sendMessage('hello', { model: 'kimi' });
+
+      const queryOptions = vi.mocked(sdk.query).mock.calls[0][0].options;
+      expect(queryOptions?.model).toBe('kimi-k2.7-code');
+      expect(queryOptions?.env).toMatchObject({
+        ANTHROPIC_BASE_URL: 'https://api.moonshot.ai/anthropic',
+        ANTHROPIC_API_KEY: 'kimi-key-1',
+        ANTHROPIC_SMALL_FAST_MODEL: 'kimi-k2.5',
+      });
+    });
+
+    it('注册表不可用时抛出 AI 服务未配置', async () => {
+      const registry = createMockRegistry({ isAvailable: vi.fn().mockReturnValue(false) });
+      const service = new AgentService(mockLogger, mockConfig(), nullLangfuse, mockKeyPool as any, registry);
 
       await expect(service.sendMessage('hello')).rejects.toThrow('AI 服务未配置');
+    });
+
+    it('resolveProvider 未知模型抛 BadRequestException 时向上传播', async () => {
+      const registry = createMockRegistry({
+        resolveProvider: vi.fn().mockRejectedValue(new BadRequestException('未知模型: x，可用: deepseek, kimi')),
+      });
+      const service = new AgentService(mockLogger, mockConfig(), nullLangfuse, mockKeyPool as any, registry);
+
+      await expect(service.sendMessage('hello', { model: 'x' })).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('keyPool 来源 provider 调用失败时标记 Key 故障', async () => {
+      vi.mocked(sdk.query).mockImplementation(() => {
+        throw new Error('boom');
+      });
+
+      const service = new AgentService(
+        mockLogger,
+        mockConfig(),
+        nullLangfuse,
+        mockKeyPool as any,
+        createMockRegistry(),
+      );
+      await expect(service.sendMessage('hello')).rejects.toThrow('boom');
+      expect(mockKeyPool.markFailure).toHaveBeenCalledWith('pool-key-1');
+    });
+
+    it('env 来源 provider 调用失败时不标记 Key 故障', async () => {
+      vi.mocked(sdk.query).mockImplementation(() => {
+        throw new Error('boom');
+      });
+
+      const service = new AgentService(
+        mockLogger,
+        mockConfig(),
+        nullLangfuse,
+        mockKeyPool as any,
+        createMockRegistry(),
+      );
+      await expect(service.sendMessage('hello', { model: 'kimi' })).rejects.toThrow('boom');
+      expect(mockKeyPool.markFailure).not.toHaveBeenCalled();
     });
 
     it('LangfuseService 注入时 hooks 应包含 SessionStart/PostToolUse/SessionEnd', async () => {
@@ -227,25 +360,30 @@ describe('AgentService', () => {
       vi.mocked(sdk.query).mockReturnValue(mockGenerate as any);
 
       const langfuse = createMockLangfuse();
-      const service = new AgentService(mockLogger, mockConfig('test-key'), langfuse, mockKeyPool as any);
+      const service = new AgentService(mockLogger, mockConfig(), langfuse, mockKeyPool as any, createMockRegistry());
       await service.sendMessage('hello');
 
       const optionsArg = vi.mocked(sdk.query).mock.calls[0][0].options;
-      // LangfuseService 启用时 hooks 应嵌套在 options.hooks 下
-      expect((optionsArg as any).hooks?.['SessionStart']).toBeDefined();
-      expect((optionsArg as any).hooks?.['PostToolUse']).toBeDefined();
-      expect((optionsArg as any).hooks?.['PostToolUseFailure']).toBeDefined();
-      expect((optionsArg as any).hooks?.['SessionEnd']).toBeDefined();
+      expect((optionsArg as { hooks?: Record<string, unknown> }).hooks?.['SessionStart']).toBeDefined();
+      expect((optionsArg as { hooks?: Record<string, unknown> }).hooks?.['PostToolUse']).toBeDefined();
+      expect((optionsArg as { hooks?: Record<string, unknown> }).hooks?.['PostToolUseFailure']).toBeDefined();
+      expect((optionsArg as { hooks?: Record<string, unknown> }).hooks?.['SessionEnd']).toBeDefined();
     });
   });
 
   describe('getSessionMessages', () => {
     it('应调用 SDK getSessionMessages', async () => {
       vi.mocked(sdk.getSessionMessages).mockResolvedValue([
-        { role: 'user', content: [{ type: 'text', text: 'hello' }] } as any,
+        { role: 'user', content: [{ type: 'text', text: 'hello' }] } as never,
       ]);
 
-      const service = new AgentService(mockLogger, mockConfig('test-key'), nullLangfuse, mockKeyPool as any);
+      const service = new AgentService(
+        mockLogger,
+        mockConfig(),
+        nullLangfuse,
+        mockKeyPool as any,
+        createMockRegistry(),
+      );
       const result = await service.getSessionMessages('session-uuid');
 
       expect(result).toHaveLength(1);
@@ -257,7 +395,13 @@ describe('AgentService', () => {
     it('应删除 SDK 会话', async () => {
       vi.mocked(sdk.deleteSession).mockResolvedValue(undefined);
 
-      const service = new AgentService(mockLogger, mockConfig('test-key'), nullLangfuse, mockKeyPool as any);
+      const service = new AgentService(
+        mockLogger,
+        mockConfig(),
+        nullLangfuse,
+        mockKeyPool as any,
+        createMockRegistry(),
+      );
       await service.destroyAgent('session-uuid');
 
       expect(sdk.deleteSession).toHaveBeenCalledWith('session-uuid', expect.any(Object));
