@@ -24,6 +24,7 @@ describe('ChatService', () => {
   const mockAgentService = {
     sendMessage: vi.fn(),
     getSessionMessages: vi.fn(),
+    getAgentLimits: vi.fn().mockReturnValue({ maxTurns: 15, maxBudgetUsd: 1.0 }),
   };
 
   const mockSessionService = {
@@ -329,6 +330,149 @@ describe('ChatService', () => {
       await service.sendAndStream({ content: 'hi', onEvent: vi.fn() });
 
       expect((service as any).activeQueries.has('sdk-uuid')).toBe(false);
+    });
+  });
+
+  describe('sendAndStream — 限额命中', () => {
+    const SDK_SESSION_ID = 'sdk-uuid-limit';
+
+    beforeEach(() => {
+      mockSessionService.getBySdkSessionId.mockResolvedValue({
+        id: 1,
+        sdkSessionId: SDK_SESSION_ID,
+        title: '新会话',
+        projectId: 1,
+      });
+    });
+
+    it('达到轮次上限应发 turn_limit_reached 且不重复发 error', async () => {
+      const mockGen = (async function* () {
+        yield {
+          type: 'result',
+          subtype: 'error_max_turns',
+          is_error: true,
+          num_turns: 15,
+          total_cost_usd: 0.8,
+          usage: {},
+          errors: ['Reached maximum number of turns'],
+        } as any;
+      })();
+      mockAgentService.sendMessage.mockResolvedValue(mockQueryResult(mockGen));
+
+      const events: any[] = [];
+      await service.sendAndStream({ content: 'hi', sdkSessionId: SDK_SESSION_ID, onEvent: (e) => events.push(e) });
+
+      const limitEvent = events.find((e) => e.type === 'turn_limit_reached');
+      expect(limitEvent).toBeDefined();
+      expect(limitEvent.data).toEqual({ limit: 15 });
+      expect(events.some((e) => e.type === 'error')).toBe(false);
+      expect(events.some((e) => e.type === 'stream_complete')).toBe(true);
+    });
+
+    it('达到预算上限应发 budget_limit_reached 且 data 携带 limit', async () => {
+      const mockGen = (async function* () {
+        yield {
+          type: 'result',
+          subtype: 'error_max_budget_usd',
+          is_error: true,
+          num_turns: 9,
+          total_cost_usd: 1.0,
+          usage: {},
+          errors: ['Reached maximum budget of $1.00'],
+        } as any;
+      })();
+      mockAgentService.sendMessage.mockResolvedValue(mockQueryResult(mockGen));
+
+      const events: any[] = [];
+      await service.sendAndStream({ content: 'hi', sdkSessionId: SDK_SESSION_ID, onEvent: (e) => events.push(e) });
+
+      const limitEvent = events.find((e) => e.type === 'budget_limit_reached');
+      expect(limitEvent).toBeDefined();
+      expect(limitEvent.data).toEqual({ limit: 1.0 });
+      expect(events.some((e) => e.type === 'error')).toBe(false);
+    });
+
+    it('限额命中应跳过标题更新与 PRD 提取，仍 flush trace 并记日志', async () => {
+      const mockGen = (async function* () {
+        yield {
+          type: 'result',
+          subtype: 'error_max_turns',
+          is_error: true,
+          num_turns: 15,
+          total_cost_usd: 0.8,
+          usage: {},
+          errors: ['Reached maximum number of turns'],
+        } as any;
+      })();
+      mockAgentService.sendMessage.mockResolvedValue(mockQueryResult(mockGen));
+
+      await service.sendAndStream({ content: 'hi', sdkSessionId: SDK_SESSION_ID, onEvent: vi.fn() });
+
+      expect(mockSessionService.updateTitle).not.toHaveBeenCalled();
+      expect(mockAssetService.create).not.toHaveBeenCalled();
+      expect(mockLangfuseService.recordGeneration).not.toHaveBeenCalled();
+      expect(mockLangfuseService.flushTrace).toHaveBeenCalled();
+      expect(mockSessionLogService.log).toHaveBeenCalledWith(
+        'default',
+        SDK_SESSION_ID,
+        'Turn limit reached',
+        expect.anything(),
+      );
+    });
+
+    it('其他错误子类型（error_during_execution）应照常发 error 事件', async () => {
+      const mockGen = (async function* () {
+        yield {
+          type: 'result',
+          subtype: 'error_during_execution',
+          is_error: true,
+          num_turns: 3,
+          total_cost_usd: 0.1,
+          usage: {},
+          errors: ['Tool execution failed'],
+        } as any;
+      })();
+      mockAgentService.sendMessage.mockResolvedValue(mockQueryResult(mockGen));
+
+      const events: any[] = [];
+      await service.sendAndStream({ content: 'hi', sdkSessionId: SDK_SESSION_ID, onEvent: (e) => events.push(e) });
+
+      const errorEvents = events.filter((e) => e.type === 'error');
+      expect(errorEvents).toHaveLength(1);
+      expect(errorEvents[0].data.message).toContain('Tool execution failed');
+    });
+
+    it('限额命中后后处理抛错应记录 warn 且不重复发 error', async () => {
+      const mockGen = (async function* () {
+        yield {
+          type: 'result',
+          subtype: 'error_max_turns',
+          is_error: true,
+          num_turns: 15,
+          total_cost_usd: 0.8,
+          usage: {},
+          errors: ['Reached maximum number of turns'],
+        } as any;
+      })();
+      mockAgentService.sendMessage.mockResolvedValue(mockQueryResult(mockGen));
+      mockLangfuseService.flushTrace.mockRejectedValueOnce(new Error('langfuse down'));
+
+      const events: any[] = [];
+      await service.sendAndStream({ content: 'hi', sdkSessionId: SDK_SESSION_ID, onEvent: (e) => events.push(e) });
+
+      expect(events.some((e) => e.type === 'error')).toBe(false);
+      expect(mockLogger.warn).toHaveBeenCalled();
+    });
+
+    it('限额应在 query 开始时解析一次（成功流也应调用，不重复解析 env）', async () => {
+      const mockGen = (async function* () {
+        yield { type: 'assistant', message: { content: [] } } as any;
+      })();
+      mockAgentService.sendMessage.mockResolvedValue(mockQueryResult(mockGen));
+
+      await service.sendAndStream({ content: 'hi', sdkSessionId: SDK_SESSION_ID, onEvent: vi.fn() });
+
+      expect(mockAgentService.getAgentLimits).toHaveBeenCalledTimes(1);
     });
   });
 

@@ -22,6 +22,8 @@ export enum SseEventType {
   Queued = 'queued',
   QueuePosition = 'queue_position',
   Dequeued = 'dequeued',
+  TurnLimitReached = 'turn_limit_reached',
+  BudgetLimitReached = 'budget_limit_reached',
 }
 
 /** SSE 事件 */

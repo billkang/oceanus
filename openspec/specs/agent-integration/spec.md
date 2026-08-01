@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Oceanus 后端与 Claude Agent SDK 的集成能力：SDK 初始化与国产模型 Provider、Tide-discuss 工作流 Skill 加载、oceanus-tide 网页聊天 Agent 适配、SSE 事件转发、中断处理与 Langfuse 可观测性。
+Oceanus 后端与 Claude Agent SDK 的集成能力：SDK 初始化与国产模型 Provider、Tide-discuss 工作流 Skill 加载、`oceanus-tide` 网页聊天 Agent 适配、SSE 事件转发、中断处理与 Langfuse 可观测性。
 
 ## Requirements
 
@@ -66,12 +66,13 @@ SDK 请求用户确认时，后端 SHALL 通过 SSE 推送选项，前端展示�
 #### Scenario: Agent 初始化配置
 
 - **WHEN** 后端调用 `SDK.query()`
-- **THEN** 使用以下配置：
+- **THEN** SHALL 使用以下配置：
   - `agent: 'oceanus-tide'`
   - `model: 'claude-sonnet-5'`
   - `effort: 'low'`
   - `thinking: { type: 'disabled' }`（禁用思考块以加速响应）
-  - `maxTurns: 20`（最多 20 轮工具调用）
+  - `maxTurns: <env AGENT_MAX_TURNS>`（默认 15，最多 15 轮工具调用）
+  - `maxBudgetUsd: <env AGENT_MAX_BUDGET_USD>`（默认 1.00，单次 query 预算硬顶）
   - `skills: 'all'`（启用所有可用 Skill）
   - `settingSources: ['project']`（从项目 .claude/ 目录加载设置）
   - `includePartialMessages: true`
@@ -80,23 +81,23 @@ SDK 请求用户确认时，后端 SHALL 通过 SSE 推送选项，前端展示�
 #### Scenario: Agent 系统提示词（网页环境适配）
 
 - **WHEN** Agent 初始化
-- **THEN** 系统提示词包含以下网页环境适配指令：
+- **THEN** 系统提示词 SHALL 包含以下网页环境适配指令：
   - 告知 Agent 在网页聊天环境中运行，不是 Claude Code 终端
   - 不要求用户执行 `/clear` 等终端命令（网页中无效）
   - tide-discuss 提到"引导 /clear"时，直接告知用户"我们开始新的需求讨论"
   - 所有对话通过网页消息完成，用户只能打字回复
-- **THEN** Agent 核心能力描述：识别需求讨论意图 → 加载 tide-discuss Skill → 严格按工作流引导用户
+- **THEN** Agent 核心能力描述 SHALL 为：识别需求讨论意图 → 加载 tide-discuss Skill → 严格按工作流引导用户
 
 #### Scenario: Agent 工具集
 
 - **WHEN** Agent 执行推理
-- **THEN** 可用工具为：`Skill`, `Read`, `Write`, `Bash`, `Grep`, `Glob`, `Edit`, `WebSearch`, `WebFetch`
-- **THEN** Skill 工具用于加载 tide-discuss 等已安装的 Skill
-- **THEN** 文件系统工具（Read/Write/Bash 等）用于在项目目录中执行操作
+- **THEN** 可用工具 SHALL 为：`Skill`, `Read`, `Write`, `Bash`, `Grep`, `Glob`, `Edit`, `WebSearch`, `WebFetch`
+- **THEN** Skill 工具 SHALL 用于加载 tide-discuss 等已安装的 Skill
+- **THEN** 文件系统工具（Read/Write/Bash 等）SHALL 用于在项目目录中执行操作
 
 ### Requirement: AiNotConfigured 事件
 
-当 ANTHROPIC_API_KEY 环境变量未配置时，Agent 服务 SHALL 启动但所有 AI 功能不可用。
+当 ANTHROPIC_API_KEY 环境变量未配置时，Agent 服务 SHALL 正常启动但所有 AI 功能不可用。
 
 #### Scenario: API Key 缺失时发送消息
 

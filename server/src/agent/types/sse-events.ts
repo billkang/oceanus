@@ -17,6 +17,8 @@ export enum SseEventType {
   Queued = 'queued',
   QueuePosition = 'queue_position',
   Dequeued = 'dequeued',
+  TurnLimitReached = 'turn_limit_reached',
+  BudgetLimitReached = 'budget_limit_reached',
 }
 
 /** SSE 事件 — 会话已创建（首条消息时推送 sdkSessionId） */
@@ -121,6 +123,18 @@ export interface SseDequeued {
   data: Record<string, never>;
 }
 
+/** SSE 事件 — 已达轮次上限 */
+export interface SseTurnLimitReached {
+  type: SseEventType.TurnLimitReached;
+  data: { limit: number };
+}
+
+/** SSE 事件 — 已达预算上限 */
+export interface SseBudgetLimitReached {
+  type: SseEventType.BudgetLimitReached;
+  data: { limit: number };
+}
+
 /** 所有 SSE 事件类型的联合 */
 export type SseEvent =
   | SseSessionCreated
@@ -139,4 +153,6 @@ export type SseEvent =
   | SseAiNotConfigured
   | SseQueued
   | SseQueuePosition
-  | SseDequeued;
+  | SseDequeued
+  | SseTurnLimitReached
+  | SseBudgetLimitReached;
