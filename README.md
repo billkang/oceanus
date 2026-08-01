@@ -92,3 +92,5 @@ make help         # 全部可用命令
 | [ADR 索引](docs/2-architecture/decisions/)        | 架构决策记录                                     |
 | [API 参考](docs/3-api/api-reference.md)           | REST API + SSE 事件                              |
 | [贡献指南](docs/6-contributing/CONTRIBUTING.md)   | 代码规范、PR 流程                                |
+
+> 临时测试：验证 main 分支保护规则（此变更不会被合并）
