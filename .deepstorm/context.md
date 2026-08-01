@@ -11,7 +11,7 @@
 - **前端**：Angular 21 + PrimeNG 21 + Tailwind CSS 4
 - **ORM**：Prisma 6 + PostgreSQL 17（4 表：users / projects / sessions / assets）
 - **AI 引擎**：Claude Agent SDK（TypeScript）
-- **AI 模型**：多模型注册（规划中，change `multi-model-runtime-switching`）：配置文件注册多 provider（DeepSeek / Kimi），前端手动选择，后端经 `query()` 的 `model` + `env` 逐调用切换；当前仅 DeepSeek（`ANTHROPIC_BASE_URL` 指向 `https://api.deepseek.com/anthropic`）
+- **AI 模型**：多模型注册（已实现，change `multi-model-runtime-switching`）：`server/config/models.yaml` 注册多 provider（DeepSeek / Kimi，含 `enabled` 开关），前端手动选择（`GET /models`），后端经 `query()` 的 `model` + `env` 逐调用切换；Key 走 per-provider 环境变量 / `apiKeyEnv_N` 独立池，全局 `ANTHROPIC_*` 已废弃
 - **实时通信**：SSE
 - **构建**：pnpm workspaces（monorepo）
 - **端口**：后端 3100，前端 4300
@@ -43,18 +43,21 @@ graph TD
 
 所有 ADR 已移至独立文件：`docs/2-architecture/decisions/`
 
-| ADR     | 标题                 | 状态 |
-| ------- | -------------------- | ---- |
-| ADR-001 | 消息存储与数据库策略 | ✅   |
-| ADR-002 | AI 引擎选型          | ✅   |
-| ADR-003 | 并发控制架构         | ✅   |
-| ADR-004 | 可观测性与日志方案   | ✅   |
-| ADR-005 | 前端技术栈           | ✅   |
-| ADR-006 | 后端框架选型         | ✅   |
-| ADR-007 | MVP 认证策略         | ✅   |
-| ADR-008 | 会话连续性与 UI 保护 | ✅   |
-| ADR-009 | Skills 注册机制      | ✅   |
-| ADR-010 | 工程基础设施与容器化 | ✅   |
+| ADR     | 标题                   | 状态 |
+| ------- | ---------------------- | ---- |
+| ADR-001 | 消息存储与数据库策略   | ✅   |
+| ADR-002 | AI 引擎选型            | ✅   |
+| ADR-003 | 并发控制架构           | ✅   |
+| ADR-004 | 可观测性与日志方案     | ✅   |
+| ADR-005 | 前端技术栈             | ✅   |
+| ADR-006 | 后端框架选型           | ✅   |
+| ADR-007 | MVP 认证策略           | ✅   |
+| ADR-008 | 会话连续性与 UI 保护   | ✅   |
+| ADR-009 | Skills 注册机制        | ✅   |
+| ADR-010 | 工程基础设施与容器化   | ✅   |
+| ADR-011 | SigNoz 日志方案        | ✅   |
+| ADR-012 | 轮次与预算上限管控     | ✅   |
+| ADR-013 | 多模型注册与运行时切换 | ✅   |
 
 ## 外部引用
 

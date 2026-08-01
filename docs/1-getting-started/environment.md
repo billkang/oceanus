@@ -171,3 +171,25 @@ flowchart LR
 > - 每次 query 独立判定，`resume` 续传视为新 query，轮次 / 预算重新计算
 > - 命中上限时前端展示内联横幅提示，会话保持 `active`，不中断
 > - 频繁触顶时可调高对应 env（单行即可），不填写则始终有默认值兜底，**永不进入无限状态**
+
+---
+
+## 模型注册表（多模型 Key 配置）
+
+> 全局 `ANTHROPIC_BASE_URL` / `ANTHROPIC_API_KEY` / `ANTHROPIC_SMALL_FAST_MODEL` 已废弃。provider 结构（default / displayName / baseUrl / modelId / smallFastModel / Key 来源 / enabled）统一声明在 `server/config/models.yaml`（模板：`server/config/models.example.yaml`），Key 一律走环境变量。
+
+| 配置项          | 说明                                                                               |
+| --------------- | ---------------------------------------------------------------------------------- |
+| `models.yaml`   | 唯一来源：声明 provider 结构与 `enabled` 开关，不含任何 Key                        |
+| `apiKeyEnv`     | 单 Key 来源：从该环境变量读取一个 API Key（如 `DEEPSEEK_API_KEY`）                 |
+| `keyPool: true` | 开启该模型独立池轮换，池前缀 = `apiKeyEnv + '_'`（如 `DEEPSEEK_API_KEY_N`）        |
+| `enabled`       | 模型开关：`enabled: false` → 完全隐藏（列表/选择器不可见、不可解析）；省略默认启用 |
+
+**池规则：** 池前缀 = `apiKeyEnv + '_'`，每个 model 独立成池（切模型即切池）；运行时池优先、池空回退单 Key（`apiKeyEnv`）。
+
+**迁移说明（`ANTHROPIC_*` → `models.yaml`）：**
+
+1. 将每个 provider 的 baseUrl / modelId / smallFastModel 声明进 `server/config/models.yaml`
+2. 单 Key：设 `apiKeyEnv` 指向一个环境变量并填 Key；多 Key 轮换：加 `keyPool: true`，填 `apiKeyEnv_N`（N 从 1 开始）
+3. 无需迁移的 Key 可删除；全局 `LLM_API_KEY_N` 池已不再由注册表使用
+4. 临时下线某模型：改 `enabled: false`，前端选择器与解析立即排除

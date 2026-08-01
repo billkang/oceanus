@@ -17,6 +17,6 @@ models:
     baseUrl: https://api.moonshot.ai/anthropic
     modelId: kimi-k2.7-code
     smallFastModel: kimi-k2.5
-    enabled: true                   # 模型开关（省略默认启用）
+    enabled: false                   # 模型开关（省略默认启用）
     keyPool: true                   # 池 KIMI_API_KEY_N 轮换（独立于 deepseek 池）
     apiKeyEnv: KIMI_API_KEY         # 单 Key 兜底（池空时用）
