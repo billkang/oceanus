@@ -21,11 +21,7 @@ describe('ChatService', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      providers: [
-        ChatService,
-        provideHttpClient(),
-        provideHttpClientTesting(),
-      ],
+      providers: [ChatService, provideHttpClient(), provideHttpClientTesting()],
     }).compileComponents();
 
     service = TestBed.inject(ChatService);
@@ -47,9 +43,9 @@ describe('ChatService', () => {
       globalThis.fetch = vi.fn().mockResolvedValue({
         ok: true,
         body: sseStream(
-          'event: message_start\ndata: {"type":"message_start","data":{"content":"分析中"}}\n\n'
-          + 'event: message_delta\ndata: {"type":"message_delta","data":{"content":"请稍候"}}\n\n'
-          + 'event: message_done\ndata: {"type":"message_done","data":{}}\n\n',
+          'event: message_start\ndata: {"type":"message_start","data":{"content":"分析中"}}\n\n' +
+            'event: message_delta\ndata: {"type":"message_delta","data":{"content":"请稍候"}}\n\n' +
+            'event: message_done\ndata: {"type":"message_done","data":{}}\n\n',
         ),
       });
 
@@ -191,8 +187,8 @@ describe('ChatService', () => {
       globalThis.fetch = vi.fn().mockResolvedValue({
         ok: true,
         body: sseStream(
-          'data: {"type":"text_chunk","data":{"text":"hello"}}\n\n'
-          + 'event: done\ndata: {"type":"done","data":{}}\n\n',
+          'data: {"type":"text_chunk","data":{"text":"hello"}}\n\n' +
+            'event: done\ndata: {"type":"done","data":{}}\n\n',
         ),
       });
 
@@ -262,6 +258,72 @@ describe('ChatService', () => {
       const req = httpMock.expectOne('/api/v1/sessions/sdk-abc/messages');
       expect(req.request.method).toBe('GET');
       req.flush(mockMessages);
+    });
+  });
+
+  describe('getModels (HttpClient)', () => {
+    it('应 GET /api/v1/models 并返回模型列表', () => {
+      const mockModels = [
+        { name: 'deepseek', displayName: 'DeepSeek', default: true },
+        { name: 'kimi', displayName: 'Kimi K2', default: false },
+      ];
+
+      service.getModels().subscribe((models) => {
+        expect(models).toEqual(mockModels);
+      });
+
+      const req = httpMock.expectOne('/api/v1/models');
+      expect(req.request.method).toBe('GET');
+      req.flush(mockModels);
+    });
+  });
+
+  describe('model 透传', () => {
+    it('sendMessage 传 model 时 body 应含 model', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        body: sseStream('data: {"type":"done","data":{}}\n\n'),
+      });
+
+      await new Promise<void>((resolve) => {
+        service.sendMessage({
+          content: '你好',
+          model: 'kimi',
+          onEvent: () => {},
+          onComplete: () => resolve(),
+        });
+      });
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        '/api/v1/chat',
+        expect.objectContaining({
+          body: JSON.stringify({ action: 'message', content: '你好', model: 'kimi' }),
+        }),
+      );
+    });
+
+    it('confirmChoice 传 model 时 body 应含 model', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        body: sseStream('data: {"type":"done","data":{}}\n\n'),
+      });
+
+      await new Promise<void>((resolve) => {
+        service.confirmChoice({
+          sessionId: 'sdk-abc',
+          confirmOption: 'A方案',
+          model: 'kimi',
+          onEvent: () => {},
+          onComplete: () => resolve(),
+        });
+      });
+
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        '/api/v1/chat',
+        expect.objectContaining({
+          body: JSON.stringify({ action: 'confirm', sessionId: 'sdk-abc', confirmOption: 'A方案', model: 'kimi' }),
+        }),
+      );
     });
   });
 

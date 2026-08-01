@@ -48,6 +48,13 @@ export interface SseStreamCallbacks {
   onError?: (message: string) => void;
 }
 
+/** 可用模型信息（镜像后端 ModelInfo：name/displayName/default） */
+export interface ModelInfo {
+  name: string;
+  displayName: string;
+  default: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ChatService {
   private readonly http = inject(HttpClient);
@@ -66,6 +73,7 @@ export class ChatService {
       content: string;
       sessionId?: string;
       projectId?: number;
+      model?: string;
     } & SseStreamCallbacks,
   ): AbortController {
     const abortController = new AbortController();
@@ -76,6 +84,7 @@ export class ChatService {
     };
     if (options.sessionId) body['sessionId'] = options.sessionId;
     if (options.projectId) body['projectId'] = options.projectId;
+    if (options.model) body['model'] = options.model;
 
     this.readSseStream('/api/v1/chat', body, abortController, options);
 
@@ -89,15 +98,17 @@ export class ChatService {
     options: {
       sessionId: string;
       confirmOption: string;
+      model?: string;
     } & SseStreamCallbacks,
   ): AbortController {
     const abortController = new AbortController();
 
-    const body = {
+    const body: Record<string, unknown> = {
       action: 'confirm',
       sessionId: options.sessionId,
       confirmOption: options.confirmOption,
     };
+    if (options.model) body['model'] = options.model;
 
     this.readSseStream('/api/v1/chat', body, abortController, options);
 
@@ -118,6 +129,11 @@ export class ChatService {
   /** 加载历史消息 */
   loadHistory(sdkSessionId: string): Observable<unknown> {
     return this.http.get(`/api/v1/sessions/${sdkSessionId}/messages`);
+  }
+
+  /** 获取可用模型列表（多模型时前端渲染选择器） */
+  getModels(): Observable<ModelInfo[]> {
+    return this.http.get<ModelInfo[]>('/api/v1/models', { headers: this.getAuthHeaders() });
   }
 
   /**

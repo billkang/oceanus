@@ -1,16 +1,39 @@
 import type { ComponentFixture } from '@angular/core/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
+import { of } from 'rxjs';
 import { ChatComponent } from './chat.component';
+import { ChatService, type ModelInfo } from './chat.service';
 
 describe('ChatComponent', () => {
   let component: ChatComponent;
   let fixture: ComponentFixture<ChatComponent>;
+  let chatServiceMock: {
+    getModels: ReturnType<typeof vi.fn>;
+    sendMessage: ReturnType<typeof vi.fn>;
+    cancelResponse: ReturnType<typeof vi.fn>;
+    confirmChoice: ReturnType<typeof vi.fn>;
+    loadHistory: ReturnType<typeof vi.fn>;
+  };
+
+  /** 两个模型（触发选择器渲染） */
+  const twoModels: ModelInfo[] = [
+    { name: 'deepseek', displayName: 'DeepSeek', default: true },
+    { name: 'kimi', displayName: 'Kimi K2', default: false },
+  ];
 
   beforeEach(async () => {
+    chatServiceMock = {
+      getModels: vi.fn(() => of([])),
+      sendMessage: vi.fn(() => new AbortController()),
+      cancelResponse: vi.fn(() => of({ success: true })),
+      confirmChoice: vi.fn(() => new AbortController()),
+      loadHistory: vi.fn(() => of([])),
+    };
+
     await TestBed.configureTestingModule({
       imports: [ChatComponent],
-      providers: [provideHttpClient()],
+      providers: [{ provide: ChatService, useValue: chatServiceMock }, provideHttpClient()],
     }).compileComponents();
 
     fixture = TestBed.createComponent(ChatComponent);
@@ -115,5 +138,55 @@ describe('ChatComponent', () => {
     } as any);
 
     expect(component.limitNotice()).toBe('');
+  });
+
+  describe('模型选择器', () => {
+    it('多模型时渲染 p-select 且默认选中 default 模型', () => {
+      chatServiceMock.getModels.mockReturnValue(of(twoModels));
+      fixture = TestBed.createComponent(ChatComponent);
+      component = fixture.componentInstance;
+      fixture.detectChanges();
+
+      expect(component.models().length).toBe(2);
+      expect(component.selectedModel()).toBe('deepseek');
+      expect(fixture.nativeElement.querySelector('p-select')).toBeTruthy();
+    });
+
+    it('仅一个模型时不渲染选择器', () => {
+      chatServiceMock.getModels.mockReturnValue(of([twoModels[0]]));
+      fixture = TestBed.createComponent(ChatComponent);
+      component = fixture.componentInstance;
+      fixture.detectChanges();
+
+      expect(component.models().length).toBe(1);
+      expect(fixture.nativeElement.querySelector('p-select')).toBeNull();
+    });
+
+    it('切换模型后发送消息应透传所选模型', () => {
+      chatServiceMock.getModels.mockReturnValue(of(twoModels));
+      fixture = TestBed.createComponent(ChatComponent);
+      component = fixture.componentInstance;
+      fixture.detectChanges();
+
+      component.onModelChange('kimi');
+      component.chatModel.set({ message: '你好' });
+      fixture.detectChanges();
+      component.send();
+
+      expect(chatServiceMock.sendMessage).toHaveBeenCalledWith(expect.objectContaining({ model: 'kimi' }));
+    });
+
+    it('确认选择应透传所选模型', () => {
+      chatServiceMock.getModels.mockReturnValue(of(twoModels));
+      fixture = TestBed.createComponent(ChatComponent);
+      component = fixture.componentInstance;
+      fixture.componentRef.setInput('sessionId', 'sdk-abc');
+      fixture.detectChanges();
+
+      component.onModelChange('kimi');
+      component.onOptionSelect('A方案');
+
+      expect(chatServiceMock.confirmChoice).toHaveBeenCalledWith(expect.objectContaining({ model: 'kimi' }));
+    });
   });
 });

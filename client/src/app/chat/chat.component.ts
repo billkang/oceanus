@@ -7,17 +7,20 @@ import {
   inject,
   input,
   type OnDestroy,
+  type OnInit,
   output,
   signal,
   viewChild,
 } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { form, FormField } from '@angular/forms/signals';
 import { Button } from 'primeng/button';
 import { Popover } from 'primeng/popover';
+import { Select } from 'primeng/select';
 import type { DisplayMessage } from './chat-message.component';
 import { ChatMessageComponent, MessageRole, MessageStatus } from './chat-message.component';
 import type { SseEvent } from './chat.service';
-import { ChatService, SseEventType } from './chat.service';
+import { ChatService, SseEventType, type ModelInfo } from './chat.service';
 
 /* ── SSE 事件数据类型 ── */
 interface MessageStartData {
@@ -79,12 +82,12 @@ interface SdkMessage {
 
 @Component({
   selector: 'app-chat',
-  imports: [ChatMessageComponent, Button, FormField, Popover],
+  imports: [ChatMessageComponent, Button, FormField, FormsModule, Popover, Select],
   standalone: true,
   templateUrl: './chat.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ChatComponent implements OnDestroy {
+export class ChatComponent implements OnInit, OnDestroy {
   private readonly chatService = inject(ChatService);
 
   readonly sessionId = input<string>('');
@@ -105,6 +108,10 @@ export class ChatComponent implements OnDestroy {
   readonly estimatedWait = signal('');
   /** 限额命中提示（内联横幅文案，下次发送清空） */
   readonly limitNotice = signal('');
+  /** 可用模型列表（来自 GET /models；多模型时渲染选择器） */
+  readonly models = signal<ModelInfo[]>([]);
+  /** 当前选中的模型名（空串 = 未选择，发送走默认 provider） */
+  readonly selectedModel = signal('');
 
   private messageIdCounter = 0;
   /** 用户是否主动滚到了历史区域（不在底部） */
@@ -146,6 +153,24 @@ export class ChatComponent implements OnDestroy {
       this.showScrollButton.set(false);
       this.loadHistory();
     });
+  }
+
+  ngOnInit(): void {
+    this.chatService.getModels().subscribe({
+      next: (models) => {
+        this.models.set(models);
+        const def = models.find((m) => m.default);
+        this.selectedModel.set(def?.name ?? models[0]?.name ?? '');
+      },
+      error: () => {
+        // 模型列表获取失败：不渲染选择器，发送走默认 provider
+      },
+    });
+  }
+
+  /** 用户切换模型（p-select onChange） */
+  onModelChange(model: string): void {
+    this.selectedModel.set(model);
   }
 
   ngOnDestroy(): void {
@@ -426,6 +451,7 @@ export class ChatComponent implements OnDestroy {
       content: text,
       sessionId: this.activeSdkSessionId,
       projectId: this.activeSdkSessionId ? undefined : this.projectId(),
+      model: this.selectedModel() || undefined,
       onEvent: (event) => {
         if (!userMsgCompleted) {
           this.messages.update((list) =>
@@ -512,6 +538,7 @@ export class ChatComponent implements OnDestroy {
       content: text,
       sessionId: this.activeSdkSessionId,
       projectId: this.activeSdkSessionId ? undefined : this.projectId(),
+      model: this.selectedModel() || undefined,
       onEvent: (event) => {
         if (!retryMsgCompleted) {
           this.messages.update((list) =>
@@ -552,6 +579,7 @@ export class ChatComponent implements OnDestroy {
     this.abortController = this.chatService.confirmChoice({
       sessionId: sid,
       confirmOption: option,
+      model: this.selectedModel() || undefined,
       onEvent: (event) => {
         this.handleSseEvent(event);
       },

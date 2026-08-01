@@ -105,6 +105,20 @@
       <span class="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse flex-shrink-0"></span>
       <span class="text-xs font-medium text-indigo-600/90">{{ aiStatus() || '&nbsp;' }}</span>
     </div>
+    <!-- 模型选择器（多模型时显示） -->
+    @if (models().length > 1) {
+      <div class="max-w-3xl mx-auto flex justify-end mb-1.5">
+        <p-select
+          [ngModel]="selectedModel()"
+          (ngModelChange)="onModelChange($event)"
+          [options]="models()"
+          optionLabel="displayName"
+          optionValue="name"
+          styleClass="!py-1 !px-2 !text-xs"
+          ariaLabel="选择模型"
+        />
+      </div>
+    }
     <!-- 限额命中提示横幅 -->
     @if (limitNotice()) {
       <div class="max-w-3xl mx-auto mb-2">
