@@ -17,6 +17,8 @@ export interface ProviderConfig {
   apiKeyEnv: string;
   /** 是否开启池轮换：true → 从 apiKeyEnv 派生的独立池（apiKeyEnv_N） */
   keyPool?: boolean;
+  /** 模型开关：enabled: false → 完全隐藏（不出现在列表、不可解析，相当于下线） */
+  enabled?: boolean;
 }
 
 /** models.yaml 解析后的整体结构 */

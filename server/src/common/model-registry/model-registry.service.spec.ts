@@ -195,4 +195,47 @@ models:
       expect(provider.keySource).toBe('pool');
     });
   });
+
+  describe('enabled 开关（enabled: false 完全隐藏）', () => {
+    it('enabled: false 的模型不出现在 listModels 中，其余模型正常', () => {
+      service.load(
+        writeYaml(
+          'enabled-1.yaml',
+          validYaml.replace('    smallFastModel: kimi-k2.5\n', '    smallFastModel: kimi-k2.5\n    enabled: false\n'),
+        ),
+      );
+      const models = service.listModels();
+      expect(models.find((m) => m.name === 'kimi')).toBeUndefined();
+      expect(models.find((m) => m.name === 'deepseek')?.default).toBe(true);
+    });
+
+    it('enabled: false 的模型不可解析（resolveProvider 抛错）', async () => {
+      service.load(
+        writeYaml(
+          'enabled-2.yaml',
+          validYaml.replace('    smallFastModel: kimi-k2.5\n', '    smallFastModel: kimi-k2.5\n    enabled: false\n'),
+        ),
+      );
+      await expect(service.resolveProvider('kimi')).rejects.toThrow();
+    });
+
+    it('省略 enabled 时模型默认可用', async () => {
+      service.load(writeYaml('enabled-3.yaml', validYaml));
+      const provider = await service.resolveProvider('kimi');
+      expect(provider.name).toBe('kimi');
+    });
+
+    it('默认 provider 被禁用 → isAvailable 为 false', () => {
+      service.load(
+        writeYaml(
+          'enabled-4.yaml',
+          validYaml.replace(
+            '    smallFastModel: deepseek-v4-flash\n',
+            '    smallFastModel: deepseek-v4-flash\n    enabled: false\n',
+          ),
+        ),
+      );
+      expect(service.isAvailable()).toBe(false);
+    });
+  });
 });

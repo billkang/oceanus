@@ -78,6 +78,10 @@ export class ModelRegistryService implements OnModuleInit {
     if (!this.config) return;
     this.unavailable.clear();
     for (const [name, provider] of Object.entries(this.config.models)) {
+      if (provider.enabled === false) {
+        this.unavailable.set(name, '模型已禁用（enabled: false）');
+        continue;
+      }
       const reason = this.keyUnavailableReason(provider);
       if (reason) this.unavailable.set(name, reason);
     }
