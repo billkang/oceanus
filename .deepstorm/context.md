@@ -11,7 +11,7 @@
 - **前端**：Angular 21 + PrimeNG 21 + Tailwind CSS 4
 - **ORM**：Prisma 6 + PostgreSQL 17（4 表：users / projects / sessions / assets）
 - **AI 引擎**：Claude Agent SDK（TypeScript）
-- **AI 模型**：多模型注册（已实现，change `multi-model-runtime-switching`）：`server/config/models.yaml` 注册多 provider（DeepSeek / Kimi，含 `enabled` 开关），前端手动选择（`GET /models`），后端经 `query()` 的 `model` + `env` 逐调用切换；Key 走 per-provider 环境变量 / `apiKeyEnv_N` 独立池，全局 `ANTHROPIC_*` 已废弃
+- **AI 模型**：多模型注册（已实现，主 spec：`openspec/specs/model-registry`）：`server/config/models.yaml` 注册多 provider（DeepSeek / Kimi，含 `enabled` 开关），前端手动选择（`GET /models`），后端经 `query()` 的 `model` + `env` 逐调用切换；Key 走 per-provider 环境变量 / `apiKeyEnv_N` 独立池，全局 `ANTHROPIC_*` 已废弃
 - **实时通信**：SSE
 - **构建**：pnpm workspaces（monorepo）
 - **端口**：后端 3100，前端 4300
