@@ -1,8 +1,10 @@
+import { BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import type { TestingModule } from '@nestjs/testing';
 import { Test } from '@nestjs/testing';
 import { Logger } from 'nestjs-pino';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { ModelRegistryService } from '../common/model-registry/model-registry.service';
 import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
 
@@ -24,9 +26,23 @@ describe('ChatController', () => {
     getSessionMessages: vi.fn(),
   };
 
+  const mockModelRegistry = {
+    listModels: vi.fn().mockReturnValue([
+      { name: 'deepseek', displayName: 'DeepSeek', default: true },
+      { name: 'kimi', displayName: 'Kimi K2', default: false },
+    ]),
+  };
+
   const mockJwtService = {
     verify: vi.fn(),
   };
+
+  const mockResponse = () => ({
+    setHeader: vi.fn(),
+    flushHeaders: vi.fn(),
+    write: vi.fn(),
+    end: vi.fn(),
+  });
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -36,6 +52,7 @@ describe('ChatController', () => {
         { provide: ChatService, useValue: mockChatService },
         { provide: Logger, useValue: mockLogger },
         { provide: JwtService, useValue: mockJwtService },
+        { provide: ModelRegistryService, useValue: mockModelRegistry },
       ],
     }).compile();
 
@@ -154,6 +171,41 @@ describe('ChatController', () => {
           end: vi.fn(),
         } as any),
       ).rejects.toThrow();
+    });
+  });
+
+  describe('POST /api/v1/chat — model 参数透传', () => {
+    it('message 请求带 model 时透传至 sendAndStream', async () => {
+      await controller.chat({ action: 'message', content: '你好', model: 'kimi' }, mockResponse() as any);
+
+      expect(chatService.sendAndStream).toHaveBeenCalledWith(
+        expect.objectContaining({ content: '你好', model: 'kimi' }),
+      );
+    });
+
+    it('confirm 请求带 model 时透传至 confirmAndStream', async () => {
+      await controller.chat(
+        { action: 'confirm', sessionId: 'sdk-uuid-abc', confirmOption: '方案A', model: 'kimi' },
+        mockResponse() as any,
+      );
+
+      expect(chatService.confirmAndStream).toHaveBeenCalledWith(
+        expect.objectContaining({ sdkSessionId: 'sdk-uuid-abc', confirmOption: '方案A', model: 'kimi' }),
+      );
+    });
+
+    it('未知 model 应抛出 400（错误信息含可用列表）', async () => {
+      await expect(
+        controller.chat({ action: 'message', content: '你好', model: 'unknown' }, mockResponse() as any),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('GET /api/v1/models', () => {
+    it('应返回注册表模型列表', async () => {
+      const result = await controller.getModels();
+
+      expect(result).toEqual(mockModelRegistry.listModels());
     });
   });
 

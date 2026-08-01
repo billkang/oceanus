@@ -24,4 +24,8 @@ export class ChatRequestDto {
   @IsString()
   @IsOptional()
   confirmOption?: string;
+
+  @IsString()
+  @IsOptional()
+  model?: string;
 }

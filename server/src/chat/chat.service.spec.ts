@@ -507,6 +507,46 @@ describe('ChatService', () => {
     });
   });
 
+  describe('sendAndStream — model 透传', () => {
+    const genText = async function* () {
+      yield {
+        type: 'stream_event',
+        event: { type: 'content_block_start', index: 0, content_block: { type: 'text', text: 'Hi' } },
+      };
+    };
+
+    it('首条消息带 model 时传给 sendMessage 第二参数 { model }', async () => {
+      mockAgentService.sendMessage.mockResolvedValue(mockQueryResult(genText()));
+
+      await service.sendAndStream({ content: 'hello', model: 'kimi', onEvent: vi.fn() });
+
+      expect(agentService.sendMessage).toHaveBeenCalledWith('hello', { model: 'kimi' });
+    });
+
+    it('续传带 model 时传给 sendMessage { resume, model }', async () => {
+      mockSessionService.getBySdkSessionId.mockResolvedValue({ id: 1, sdkSessionId: 'sdk-uuid', title: '新会话' });
+      mockAgentService.sendMessage.mockResolvedValue(mockQueryResult(genText()));
+
+      await service.sendAndStream({ content: 'hello', sdkSessionId: 'sdk-uuid', model: 'kimi', onEvent: vi.fn() });
+
+      expect(agentService.sendMessage).toHaveBeenCalledWith('hello', { resume: 'sdk-uuid', model: 'kimi' });
+    });
+
+    it('confirm 带 model 时透传给 sendAndStream → sendMessage', async () => {
+      mockSessionService.getBySdkSessionId.mockResolvedValue({ id: 1, sdkSessionId: 'sdk-uuid', title: '新会话' });
+      mockAgentService.sendMessage.mockResolvedValue(mockQueryResult(genText()));
+
+      await service.confirmAndStream({
+        sdkSessionId: 'sdk-uuid',
+        confirmOption: '方案A',
+        model: 'kimi',
+        onEvent: vi.fn(),
+      });
+
+      expect(agentService.sendMessage).toHaveBeenCalledWith('方案A', { resume: 'sdk-uuid', model: 'kimi' });
+    });
+  });
+
   describe('cancelResponse', () => {
     it('无活跃 query 时不抛异常', async () => {
       await expect(service.cancelResponse('non-existent')).resolves.toBeUndefined();

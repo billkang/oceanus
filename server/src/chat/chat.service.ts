@@ -24,6 +24,8 @@ export interface SendStreamOptions {
   content: string;
   sdkSessionId?: string;
   projectId?: string | number;
+  /** provider 逻辑名（缺省用默认 provider） */
+  model?: string;
   onEvent: SseEventCallback;
 }
 
@@ -31,6 +33,8 @@ export interface SendStreamOptions {
 export interface ConfirmStreamOptions {
   sdkSessionId: string;
   confirmOption: string;
+  /** provider 逻辑名（缺省用默认 provider） */
+  model?: string;
   onEvent: SseEventCallback;
 }
 
@@ -101,7 +105,7 @@ export class ChatService {
    * 请求通过 RequestQueue 分发：并发未满时直接执行，超限时排队等待。
    */
   async sendAndStream(options: SendStreamOptions): Promise<void> {
-    const { content, sdkSessionId, projectId, onEvent } = options;
+    const { content, sdkSessionId, projectId, model, onEvent } = options;
 
     if (!content || content.trim().length === 0) {
       throw new Error('消息内容不能为空');
@@ -152,8 +156,13 @@ export class ChatService {
 
       try {
         const result = isFirstMessage
-          ? await this.agentService.sendMessage(content)
-          : await this.agentService.sendMessage(content, { resume: normalizedSessionId! });
+          ? model
+            ? await this.agentService.sendMessage(content, { model })
+            : await this.agentService.sendMessage(content)
+          : await this.agentService.sendMessage(content, {
+              resume: normalizedSessionId!,
+              ...(model ? { model } : {}),
+            });
 
         const { stream, interrupt } = result;
 
@@ -333,7 +342,7 @@ export class ChatService {
    * 用户确认选择——等价于 resume 发一条消息
    */
   async confirmAndStream(options: ConfirmStreamOptions): Promise<void> {
-    const { sdkSessionId, confirmOption, onEvent } = options;
+    const { sdkSessionId, confirmOption, model, onEvent } = options;
 
     // 验证 session 存在
     try {
@@ -344,10 +353,11 @@ export class ChatService {
 
     onEvent({ type: SseEventType.ConfirmAccepted, data: {} });
 
-    // resume 发一条消息，消息内容就是用户的选项
+    // resume 发一条消息，消息内容就是用户的选项；携带 model 避免续传漂移回默认 provider
     await this.sendAndStream({
       content: confirmOption,
       sdkSessionId,
+      ...(model ? { model } : {}),
       onEvent,
     });
   }

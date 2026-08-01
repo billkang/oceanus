@@ -5,9 +5,10 @@ import { AgentModule } from '../agent/agent.module';
 import { SessionModule } from '../session/session.module';
 import { AssetModule } from '../asset/asset.module';
 import { AuthModule } from '../auth/auth.module';
+import { ModelRegistryModule } from '../common/model-registry/model-registry.module';
 
 @Module({
-  imports: [AgentModule, SessionModule, AssetModule, AuthModule],
+  imports: [AgentModule, SessionModule, AssetModule, AuthModule, ModelRegistryModule],
   controllers: [ChatController],
   providers: [ChatService],
   exports: [ChatService],

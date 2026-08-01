@@ -7,6 +7,7 @@ import { Logger } from 'nestjs-pino';
 import { SseEventType } from '../agent/types/sse-events';
 import type { SseEvent } from '../agent/types/sse-events';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ModelRegistryService } from '../common/model-registry/model-registry.service';
 import { ChatService } from './chat.service';
 import type { ChatAction } from './dto/chat-request.dto';
 import { ChatRequestDto } from './dto/chat-request.dto';
@@ -20,6 +21,7 @@ export class ChatController {
   constructor(
     private readonly chatService: ChatService,
     private readonly logger: Logger,
+    private readonly modelRegistry: ModelRegistryService,
   ) {}
 
   @Post('chat')
@@ -46,6 +48,7 @@ export class ChatController {
             content: dto.content!,
             sdkSessionId: dto.sessionId,
             projectId: dto.projectId,
+            ...(dto.model ? { model: dto.model } : {}),
             onEvent: pushEvent,
           });
           break;
@@ -54,6 +57,7 @@ export class ChatController {
           await this.chatService.confirmAndStream({
             sdkSessionId: dto.sessionId!,
             confirmOption: dto.confirmOption!,
+            ...(dto.model ? { model: dto.model } : {}),
             onEvent: pushEvent,
           });
           break;
@@ -78,11 +82,25 @@ export class ChatController {
     return this.chatService.getSessionMessages(sdkSessionId);
   }
 
+  @Get('models')
+  @ApiOperation({ summary: '获取可用模型列表' })
+  async getModels() {
+    return this.modelRegistry.listModels();
+  }
+
   /**
    * 请求体验证
    */
   private validateRequest(dto: ChatRequestDto): void {
     const action: ChatAction = dto.action;
+
+    // 未知 model → 400（错误信息含可用列表）
+    if (dto.model) {
+      const available = this.modelRegistry.listModels();
+      if (!available.some((m) => m.name === dto.model)) {
+        throw new BadRequestException(`未知模型: ${dto.model}，可用: ${available.map((m) => m.name).join(', ')}`);
+      }
+    }
 
     if (action === 'message') {
       if (!dto.content || !dto.content.trim()) {
