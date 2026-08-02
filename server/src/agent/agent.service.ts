@@ -1,6 +1,7 @@
 import type {
   PostToolUseFailureHookInput,
   PostToolUseHookInput,
+  PreToolUseHookInput,
   SessionEndHookInput,
   SessionStartHookInput,
 } from '@anthropic-ai/claude-agent-sdk';
@@ -15,6 +16,7 @@ import { LangfuseService } from '../common/langfuse/langfuse.service';
 import { KeyPoolService } from '../common/key-pool/key-pool.service';
 import { ModelRegistryService } from '../common/model-registry/model-registry.service';
 import { PrismaSessionStore } from './stores/prisma.store';
+import { isWithinLexical, realpathDeepest } from '../common/path-is-within';
 
 /**
  * Agent 服务
@@ -97,10 +99,22 @@ export class AgentService {
    * 发送消息并获取 SDK 流式响应
    *
    * @param content - 用户消息内容
-   * @param options - resume: SDK 会话 ID（续传时必传，首条不传）；model: provider 逻辑名（缺省用默认 provider）；partitionKey: 会话分区键（${projectName}/${username}，必传）
+   * @param options - resume: SDK 会话 ID（续传时必传，首条不传）；model: provider 逻辑名（缺省用默认 provider）；
+   *   partitionKey: 会话分区键（${projectName}/${username}，必传）；sessionDir: Agent cwd（会话专属目录）；
+   *   sharedDir: 公共需求区（additionalDirectories 只读参考）；sessionId: 首条预生成会话 ID（可选）
    * @returns stream + interrupt
    */
-  async sendMessage(content: string, options?: { resume?: string; model?: string; partitionKey: string }) {
+  async sendMessage(
+    content: string,
+    options?: {
+      resume?: string;
+      model?: string;
+      partitionKey: string;
+      sessionDir?: string;
+      sharedDir?: string;
+      sessionId?: string;
+    },
+  ) {
     if (!this.isAvailable()) {
       throw new Error('AI 服务未配置');
     }
@@ -112,6 +126,13 @@ export class AgentService {
     const provider = await this.modelRegistry.resolveProvider(options?.model);
     this.logger.debug(`Sending message (resume=${options?.resume ?? 'new session'}, model=${provider.name})`);
 
+    // 隔离目录由 ChatService 注入；缺失即抛错（fail-closed），绝不回退 process.cwd() 暴露宿主机目录
+    if (!options?.sessionDir) {
+      throw new Error('缺少会话隔离目录 sessionDir');
+    }
+    const sessionDir = options.sessionDir;
+    const sharedDir = options?.sharedDir ?? '';
+
     const sessionOptions: Record<string, unknown> = {};
     if (options?.resume) {
       sessionOptions.resume = options.resume;
@@ -120,6 +141,7 @@ export class AgentService {
 
     // 本地会话副本指向临时目录即弃，Postgres 为唯一权威副本（服务器磁盘零累积）
     const configDir = path.join(os.tmpdir(), 'oceanus-agent-config', options.partitionKey, Date.now().toString());
+    const permissionHooks = this.buildPermissionHooks(sessionDir, sharedDir);
 
     try {
       const { maxTurns, maxBudgetUsd } = this.resolveAgentLimits();
@@ -128,6 +150,9 @@ export class AgentService {
         prompt: content,
         options: {
           ...sessionOptions,
+          ...(options?.sessionId ? { sessionId: options.sessionId } : {}),
+          cwd: sessionDir,
+          additionalDirectories: sharedDir ? [sharedDir] : [],
           includePartialMessages: true,
           agent: 'oceanus-tide',
           agents: {
@@ -145,8 +170,9 @@ export class AgentService {
 - 用户表达需求讨论意图（"我想/需要/做一个/讨论一下..."）时，
   调用 Skill 工具加载 tide-discuss 工作流
 - 进入 tide-discuss 后，严格按照其工作流引导用户完成需求收敛
-- 项目位于 /Users/billkang/workspace/oceanus，已安装 tide-discuss skill`,
-              tools: ['Skill', 'Read', 'Write', 'Bash', 'Grep', 'Glob', 'Edit', 'WebSearch', 'WebFetch'],
+- 当前工作目录为你的会话专属目录；tide-discuss skill 已随项目安装。
+  你的文件读写仅限会话目录内，公共 PRD 位于 additionalDirectories 供只读参考。`,
+              tools: ['Skill', 'Read', 'Write', 'Grep', 'Glob', 'Edit', 'WebSearch', 'WebFetch'], // 无 Bash
             },
           },
           skills: 'all',
@@ -163,7 +189,10 @@ export class AgentService {
           thinking: { type: 'enabled', budgetTokens: 4000 },
           maxTurns,
           maxBudgetUsd,
-          ...this.buildLangfuseHooks(provider.modelId),
+          hooks: {
+            ...(this.buildLangfuseHooks(provider.modelId).hooks ?? {}),
+            ...(permissionHooks.hooks ?? {}),
+          },
         },
       });
 
@@ -242,6 +271,72 @@ export class AgentService {
                   return lf.flushTrace(input.session_id).then(() => ({ continue: true }));
                 }
                 return Promise.resolve({ continue: true });
+              },
+            ],
+          },
+        ],
+      },
+    };
+  }
+
+  /**
+   * 构建目录隔离 hooks：写（Write/Edit）仅限会话目录内；读（Read）限会话目录 + 公共需求区。
+   * 相对路径按 hook input 的 cwd（即会话目录）解析。
+   *
+   * 写白名单用 realpath 判定：词法 isWithinLexical 无法识破「会话目录内 symlink 指向界外」，
+   * 故对目标与会话目录各自求真实路径后再做包含判定（symlink 逃逸 deny）。
+   */
+  private buildPermissionHooks(sessionDir: string, sharedDir: string): { hooks: Record<string, unknown> } {
+    return {
+      hooks: {
+        PreToolUse: [
+          {
+            matcher: 'Write|Edit',
+            hooks: [
+              async (input: PreToolUseHookInput) => {
+                const target = (input.tool_input as { file_path?: string } | undefined)?.file_path;
+                if (typeof target !== 'string') {
+                  return {
+                    hookSpecificOutput: {
+                      hookEventName: 'PreToolUse' as const,
+                      permissionDecision: 'deny' as const,
+                      permissionDecisionReason: '写操作缺少 file_path',
+                    },
+                  };
+                }
+                const abs = path.resolve(input.cwd ?? sessionDir, target);
+                const [realTarget, realSessionDir] = await Promise.all([
+                  realpathDeepest(abs),
+                  realpathDeepest(sessionDir),
+                ]);
+                if (!isWithinLexical(realSessionDir, realTarget)) {
+                  return {
+                    hookSpecificOutput: {
+                      hookEventName: 'PreToolUse' as const,
+                      permissionDecision: 'deny' as const,
+                      permissionDecisionReason: `写操作目标超出会话目录: ${target}`,
+                    },
+                  };
+                }
+                return { continue: true };
+              },
+            ],
+          },
+          {
+            matcher: 'Read',
+            hooks: [
+              (input: PreToolUseHookInput) => {
+                const target = (input.tool_input as { file_path?: string } | undefined)?.file_path;
+                if (typeof target !== 'string') return { continue: true };
+                const abs = path.resolve(input.cwd ?? sessionDir, target);
+                if (isWithinLexical(sessionDir, abs) || isWithinLexical(sharedDir, abs)) return { continue: true };
+                return {
+                  hookSpecificOutput: {
+                    hookEventName: 'PreToolUse' as const,
+                    permissionDecision: 'deny' as const,
+                    permissionDecisionReason: `读操作目标越界: ${target}`,
+                  },
+                };
               },
             ],
           },

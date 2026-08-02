@@ -20,10 +20,10 @@ Authorization: Bearer <JWT>
 
 请求体：
 
-| 字段       | 类型     | 必填 | 说明             |
-| ---------- | -------- | ---- | ---------------- |
-| `username` | `string` | 是   | 用户名           |
-| `password` | `string` | 是   | 密码             |
+| 字段       | 类型     | 必填 | 说明   |
+| ---------- | -------- | ---- | ------ |
+| `username` | `string` | 是   | 用户名 |
+| `password` | `string` | 是   | 密码   |
 
 响应 `200`：
 
@@ -55,7 +55,17 @@ Authorization: Bearer <JWT>
 响应 `200`：
 
 ```json
-[{ "id": 1, "uuid": "…", "projectName": "project-a", "displayName": "项目 A", "description": "…", "active": true, "sessionCount": 3 }]
+[
+  {
+    "id": 1,
+    "uuid": "…",
+    "projectName": "project-a",
+    "displayName": "项目 A",
+    "description": "…",
+    "active": true,
+    "sessionCount": 3
+  }
+]
 ```
 
 ### POST /api/v1/projects
@@ -64,11 +74,11 @@ Authorization: Bearer <JWT>
 
 请求体：
 
-| 字段          | 类型     | 必填 | 说明                                                            |
-| ------------- | -------- | ---- | --------------------------------------------------------------- |
-| `projectName` | `string` | 是   | 唯一标识，仅允许小写字母、数字、`-`、`_`，作为 URL 标识         |
-| `displayName` | `string` | 是   | 项目显示名称                                                    |
-| `description` | `string` | 否   | 项目描述                                                        |
+| 字段          | 类型     | 必填 | 说明                                                    |
+| ------------- | -------- | ---- | ------------------------------------------------------- |
+| `projectName` | `string` | 是   | 唯一标识，仅允许小写字母、数字、`-`、`_`，作为 URL 标识 |
+| `displayName` | `string` | 是   | 项目显示名称                                            |
+| `description` | `string` | 否   | 项目描述                                                |
 
 响应 `201`：项目对象（含 `sessionCount: 0`）。
 
@@ -92,7 +102,7 @@ Authorization: Bearer <JWT>
 
 ### DELETE /api/v1/projects/:projectName
 
-删除项目（**owner-only**），级联删除项目下全部会话及其 `SessionEntry`、资产、成员关系。
+删除项目（**owner-only**）。**软删**：`$transaction` 级联将全部会话、`SessionEntry`、资产、成员关系、项目本身置 `deletedAt`（读查询不可见）；项目物理目录随后移入回收站 `.trash/`（rename 失败仅记日志，不阻断 DB）。
 
 响应 `200`：`{ "success": true }`。
 
@@ -111,7 +121,17 @@ Authorization: Bearer <JWT>
 响应 `200`：
 
 ```json
-[{ "id": 1, "sdkSessionId": "…", "title": "…", "status": "active", "username": "admin", "lastMessageAt": "…", "project": { "projectName": "project-a", "displayName": "项目 A" } }]
+[
+  {
+    "id": 1,
+    "sdkSessionId": "…",
+    "title": "…",
+    "status": "active",
+    "username": "admin",
+    "lastMessageAt": "…",
+    "project": { "projectName": "project-a", "displayName": "项目 A" }
+  }
+]
 ```
 
 错误：非项目成员 → `404`。
@@ -126,7 +146,9 @@ Authorization: Bearer <JWT>
 
 ### DELETE /api/v1/sessions/:sdkSessionId
 
-删除会话（**owner-only**），`$transaction` 级联清理对应 `partitionKey` 的全部 `SessionEntry` 后删除会话。
+删除会话（**owner-only**），`$transaction` 级联**软删**（`deletedAt` 置位，保留审计可恢复）：
+`SessionEntry`（按 `partitionKey` + `sessionId`）→ `Asset`（按 `sessionId`）→ `Session`。
+随后会话目录移入 `.trash/` 回收站（失败仅记日志，不阻断 DB 删除）。
 
 响应 `200`：`{ "success": true }`。
 

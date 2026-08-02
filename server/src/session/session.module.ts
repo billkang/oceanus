@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { ProjectModule } from '../project/project.module';
+import { WorkspaceModule } from '../workspace/workspace.module';
 import { SessionController } from './session.controller';
 import { SessionService } from './session.service';
 
 @Module({
-  imports: [AuthModule, ProjectModule],
+  imports: [AuthModule, ProjectModule, WorkspaceModule],
   controllers: [SessionController],
   providers: [SessionService],
   exports: [SessionService],

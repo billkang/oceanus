@@ -18,11 +18,11 @@ export class AssetService {
     });
   }
 
-  /** 会话下的资产列表（按创建时间倒序，校验会话归属） */
+  /** 会话下的资产列表（按创建时间倒序，校验会话归属，不含已软删） */
   async listBySession(sessionId: number, username: string) {
     await this.assertSessionOwned(sessionId, username);
     return this.prisma.asset.findMany({
-      where: { sessionId },
+      where: { sessionId, deletedAt: null },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -50,10 +50,10 @@ export class AssetService {
     };
   }
 
-  /** 校验会话归属（非所有者统一 404，不泄露存在性） */
+  /** 校验会话归属（非所有者/已软删统一 404，不泄露存在性） */
   private async assertSessionOwned(sessionId: number, username: string) {
-    const session = await this.prisma.session.findUnique({
-      where: { id: sessionId },
+    const session = await this.prisma.session.findFirst({
+      where: { id: sessionId, deletedAt: null },
       select: { username: true },
     });
     if (!session || session.username !== username) {
@@ -61,10 +61,14 @@ export class AssetService {
     }
   }
 
-  /** 校验资产归属（asset → session → username），返回资产含 session 投影 */
+  /**
+   * 校验资产归属（asset → session → username），返回资产含 session 投影。
+   * 已软删资产视为不存在；纵深防御：所属会话已软删（项目删除级联）时同样 404，
+   * 避免项目删除后遗留的资产仍可通过 id 直读。
+   */
   private async assertOwned(assetId: number, username: string) {
-    const asset = await this.prisma.asset.findUnique({
-      where: { id: assetId },
+    const asset = await this.prisma.asset.findFirst({
+      where: { id: assetId, deletedAt: null, session: { is: { deletedAt: null } } },
       include: { session: { select: { username: true } } },
     });
     if (!asset || asset.session.username !== username) {
