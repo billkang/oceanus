@@ -18,6 +18,9 @@ import { SessionModule } from './session/session.module';
 import { ChatModule } from './chat/chat.module';
 import { AssetModule } from './asset/asset.module';
 import { HealthModule } from './health/health.module';
+import { WorkspaceModule } from './workspace/workspace.module';
+import { SkillsModule } from './skills/skills.module';
+import { ArchiveModule } from './archive/archive.module';
 
 /**
  * 应用根模块
@@ -107,6 +110,9 @@ import { HealthModule } from './health/health.module';
     AssetModule,
     HealthModule,
     RequestQueueModule,
+    WorkspaceModule,
+    SkillsModule,
+    ArchiveModule,
   ],
   controllers: [AppController],
   providers: [AppService, AllExceptionsFilter],

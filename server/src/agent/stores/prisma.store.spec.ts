@@ -54,6 +54,22 @@ describe('PrismaSessionStore', () => {
     expect(list[1].sessionId).toBe('sa');
   });
 
+  it('delete 软删：记录保留但读查询不可见（deletedAt 置位）', async () => {
+    const key = { projectKey: P, sessionId: 'soft-del' };
+    await store.append(key, [{ type: 'user', uuid: 'sd1' }]);
+
+    await store.delete(key);
+
+    // 读路径（load / listSessions）不可见
+    expect(await store.load(key)).toBeNull();
+    const sessions = await store.listSessions(P);
+    expect(sessions.map((s) => s.sessionId)).not.toContain('soft-del');
+    // 记录仍物理存在（软删语义），deletedAt 已置位
+    const rows = await prisma.sessionEntry.findMany({ where: { partitionKey: P, sessionId: 'soft-del' } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].deletedAt).not.toBeNull();
+  });
+
   it('delete 主记录级联子路径，listSubkeys 返回子路径', async () => {
     const key = { projectKey: P, sessionId: 's3' };
     const sub = { projectKey: P, sessionId: 's3', subpath: 'subagents/agent-1' };

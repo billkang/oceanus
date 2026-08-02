@@ -1,3 +1,8 @@
+vi.mock('node:fs/promises', () => ({
+  mkdir: vi.fn().mockResolvedValue(undefined),
+  writeFile: vi.fn().mockResolvedValue(undefined),
+}));
+
 import type { TestingModule } from '@nestjs/testing';
 import { Test } from '@nestjs/testing';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
@@ -10,6 +15,12 @@ import { ProjectService } from '../project/project.service';
 import { LangfuseService } from '../common/langfuse/langfuse.service';
 import { SessionLogService } from '../common/logging/session-log.service';
 import { RequestQueueService } from '../common/queue/request-queue.service';
+import { WorkspaceService } from '../workspace/workspace.service';
+import { SkillsProvider } from '../skills/skills-provider.interface';
+import { ArchiveService } from '../archive/archive.service';
+import { writeFile } from 'node:fs/promises';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 describe('ChatService', () => {
   let service: ChatService;
@@ -79,6 +90,28 @@ describe('ChatService', () => {
     getQueuePosition: vi.fn().mockReturnValue(null),
   };
 
+  const mockWorkspace = {
+    ensureSessionDir: vi.fn().mockResolvedValue(undefined),
+    paths: {
+      projectRoot: vi.fn((proj: string) => `/projects/${proj}`),
+      sessionDir: vi.fn(
+        (proj: string, user: string, sid: string) => `/projects/${proj}/requirements/private/${user}/${sid}`,
+      ),
+      sharedRoot: vi.fn((proj: string) => `/projects/${proj}/requirements/shared`),
+      sharedPrdDir: vi.fn((proj: string) => `/projects/${proj}/requirements/shared/prd`),
+      requirementsRoot: vi.fn((proj: string) => `/projects/${proj}/requirements`),
+    },
+  } as unknown as WorkspaceService;
+
+  const mockSkills = {
+    install: vi.fn().mockResolvedValue(undefined),
+    isOutdated: vi.fn().mockResolvedValue(false),
+  } as unknown as SkillsProvider;
+
+  const mockArchiveService = {
+    onPrdExtracted: vi.fn().mockResolvedValue(undefined),
+  } as unknown as ArchiveService;
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -91,6 +124,9 @@ describe('ChatService', () => {
         { provide: LangfuseService, useValue: mockLangfuseService },
         { provide: SessionLogService, useValue: mockSessionLogService },
         { provide: RequestQueueService, useValue: mockRequestQueue },
+        { provide: WorkspaceService, useValue: mockWorkspace },
+        { provide: SkillsProvider, useValue: mockSkills },
+        { provide: ArchiveService, useValue: mockArchiveService },
       ],
     }).compile();
 
@@ -168,11 +204,41 @@ describe('ChatService', () => {
       });
 
       expect(projectService.getById).toHaveBeenCalledWith('project-a', TEST_USERNAME);
-      expect(agentService.sendMessage).toHaveBeenCalledWith('hello', { partitionKey: TEST_PARTITION });
+      expect(agentService.sendMessage).toHaveBeenCalledWith(
+        'hello',
+        expect.objectContaining({ partitionKey: TEST_PARTITION }),
+      );
       expect(agentService.sendMessage).not.toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({ resume: expect.anything() }),
       );
+    });
+
+    it('首条消息：预生成 sessionId → ensureSessionDir → 传 sessionDir/sharedDir/sessionId', async () => {
+      const mockGen = (async function* () {
+        yield { type: 'system', subtype: 'init', session_id: SDK_SESSION_ID };
+        yield { type: 'assistant', message: { content: [] } } as any;
+      })();
+      mockAgentService.sendMessage.mockResolvedValue(mockQueryResult(mockGen));
+      mockSessionService.create.mockResolvedValue({ id: 1, sdkSessionId: SDK_SESSION_ID, title: '新会话' });
+
+      await service.sendAndStream({
+        content: 'hi',
+        projectName: 'project-a',
+        username: TEST_USERNAME,
+        onEvent: vi.fn(),
+      });
+
+      expect(mockWorkspace.ensureSessionDir).toHaveBeenCalledWith(
+        'project-a',
+        TEST_USERNAME,
+        expect.stringMatching(UUID_RE),
+      );
+      const sendArgs = mockAgentService.sendMessage.mock.calls[0];
+      expect(sendArgs[0]).toBe('hi');
+      expect(sendArgs[1].sessionDir).toContain('project-a/requirements/private/admin');
+      expect(sendArgs[1].sharedDir).toContain('project-a/requirements/shared');
+      expect(sendArgs[1].sessionId).toEqual(expect.stringMatching(UUID_RE));
     });
 
     it('首条消息应从 init 事件捕获 session_id 并创建 Session（记录归属用户）', async () => {
@@ -288,10 +354,10 @@ describe('ChatService', () => {
       });
 
       expect(mockSessionService.getBySdkSessionId).toHaveBeenCalledWith(SDK_SESSION_ID);
-      expect(agentService.sendMessage).toHaveBeenCalledWith('继续说', {
-        resume: SDK_SESSION_ID,
-        partitionKey: TEST_PARTITION,
-      });
+      expect(agentService.sendMessage).toHaveBeenCalledWith(
+        '继续说',
+        expect.objectContaining({ resume: SDK_SESSION_ID, partitionKey: TEST_PARTITION }),
+      );
     });
 
     it('续传不应创建新 session', async () => {
@@ -647,10 +713,10 @@ describe('ChatService', () => {
         onEvent: (e) => events.push(e),
       });
 
-      expect(agentService.sendMessage).toHaveBeenCalledWith('方案A', {
-        resume: 'sdk-uuid',
-        partitionKey: TEST_PARTITION,
-      });
+      expect(agentService.sendMessage).toHaveBeenCalledWith(
+        '方案A',
+        expect.objectContaining({ resume: 'sdk-uuid', partitionKey: TEST_PARTITION }),
+      );
       expect(events.some((e) => e.type === 'confirm_accepted')).toBe(true);
       expect(events.some((e) => e.type === 'stream_complete')).toBe(true);
     });
@@ -691,7 +757,10 @@ describe('ChatService', () => {
         onEvent: vi.fn(),
       });
 
-      expect(agentService.sendMessage).toHaveBeenCalledWith('hello', { model: 'kimi', partitionKey: TEST_PARTITION });
+      expect(agentService.sendMessage).toHaveBeenCalledWith(
+        'hello',
+        expect.objectContaining({ model: 'kimi', partitionKey: TEST_PARTITION }),
+      );
     });
 
     it('续传带 model 时传给 sendMessage { resume, model, partitionKey }', async () => {
@@ -706,11 +775,10 @@ describe('ChatService', () => {
         onEvent: vi.fn(),
       });
 
-      expect(agentService.sendMessage).toHaveBeenCalledWith('hello', {
-        resume: 'sdk-uuid',
-        model: 'kimi',
-        partitionKey: TEST_PARTITION,
-      });
+      expect(agentService.sendMessage).toHaveBeenCalledWith(
+        'hello',
+        expect.objectContaining({ resume: 'sdk-uuid', model: 'kimi', partitionKey: TEST_PARTITION }),
+      );
     });
 
     it('confirm 带 model 时透传给 sendAndStream → sendMessage', async () => {
@@ -725,11 +793,44 @@ describe('ChatService', () => {
         onEvent: vi.fn(),
       });
 
-      expect(agentService.sendMessage).toHaveBeenCalledWith('方案A', {
-        resume: 'sdk-uuid',
-        model: 'kimi',
-        partitionKey: TEST_PARTITION,
-      });
+      expect(agentService.sendMessage).toHaveBeenCalledWith(
+        '方案A',
+        expect.objectContaining({ resume: 'sdk-uuid', model: 'kimi', partitionKey: TEST_PARTITION }),
+      );
+    });
+  });
+
+  describe('tryExtractPrd（PRD 落盘与归档触发）', () => {
+    it('落盘会话目录并触发归档', async () => {
+      mockSessionService.getBySdkSessionId.mockResolvedValue({
+        id: 1,
+        project: { projectName: 'proj' },
+        username: 'alice',
+      } as never);
+      mockAssetService.create.mockResolvedValue({ id: 9, title: 'T' } as never);
+
+      const onEvent = vi.fn();
+      await (
+        service as unknown as { tryExtractPrd: (s: string, r: string, e: (ev: unknown) => void) => Promise<void> }
+      ).tryExtractPrd('s1', '# PRD\n内容', onEvent);
+
+      expect(vi.mocked(writeFile)).toHaveBeenCalledWith(
+        expect.stringContaining('s1'),
+        expect.stringContaining('# PRD'),
+        'utf8',
+      );
+      expect(mockArchiveService.onPrdExtracted).toHaveBeenCalledWith('s1');
+    });
+
+    it('无 PRD 标记时不落盘也不触发归档', async () => {
+      const onEvent = vi.fn();
+      await (
+        service as unknown as { tryExtractPrd: (s: string, r: string, e: (ev: unknown) => void) => Promise<void> }
+      ).tryExtractPrd('s1', '只是一段普通回复', onEvent);
+
+      expect(mockAssetService.create).not.toHaveBeenCalled();
+      expect(vi.mocked(writeFile)).not.toHaveBeenCalled();
+      expect(mockArchiveService.onPrdExtracted).not.toHaveBeenCalled();
     });
   });
 

@@ -1,0 +1,36 @@
+{
+  "change": "project-workspace-isolation",
+  "tasks": { "total": 46, "passed": 46 },
+  "build": { "command": "npm run build", "exitCode": 0, "passed": true, "duration": 8 },
+  "lint": { "command": "npx eslint \"{src,test}/**/*.ts\"", "exitCode": 0, "passed": true },
+  "tests": {
+    "command": "server: npx vitest run; client: npm run test (ng test --watch=false)",
+    "exitCode": 0,
+    "passed": true,
+    "server": { "files": 27, "total": 258, "passed": 258, "failed": 0, "duration": 2 },
+    "client": { "files": 19, "total": 135, "passed": 135, "failed": 0, "duration": 3 }
+  },
+  "acCoverage": {
+    "total": 30,
+    "covered": 28,
+    "uncovered": [
+      "agent-workspace-isolation / system prompt 路径感知: 提示词不包含硬编码绝对仓库路径（低风险，字符串内容断言缺失，代码内已确认无硬编码绝对路径）",
+      "project-workspace / PROJECTS_ROOT 未配置使用默认根路径 + WARN 日志（低风险，配置回退路径断言缺失，实现含默认回退）"
+    ]
+  },
+  "review": {
+    "findings": 5,
+    "blockers": 0,
+    "warnings": 0,
+    "suggestions": 0,
+    "reportPath": "code-audit 5 项修复全部完成并经 RED→GREEN 实测 + 全量验证（见任务 #22-#26：Fix A 项目软删级联纵深防御 / Fix B archive mutex 失败链传染 + LLM 合并目录隔离 / Fix C agent 写白名单 realpath 逃逸防御 + sessionDir fail-closed / Fix D prisma.store 软删过滤 + skills 安装超时 + seed 排除软删 / Fix E 文档同步）"
+  },
+  "deferred": [
+    "archive 合并阻塞 SSE 等待（当前触发后异步执行，不阻塞流式响应）",
+    "SessionEntry 数据量增长后的 map 清理策略",
+    "skills 惰性刷新与并发安装竞态（当前 best-effort，竞态窗口极小）",
+    "docker volume 挂载与本地 PROJECTS_ROOT 一致性",
+    "@deepstorm/cli 依赖版本跟随与 OQ-3 复制模板机制的长期演进"
+  ],
+  "summary": "PASSED with warnings"
+}

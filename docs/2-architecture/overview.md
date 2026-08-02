@@ -25,8 +25,11 @@ flowchart TB
     subgraph Orchestrator[Oceanus Orchestrator]
         Chat[Chat Module<br/>SSE + RequestQueue]
         Session[Session Manager]
-        Agent[Agent SDK 封装]
+        Agent[Agent SDK 封装<br/>cwd / 写白名单 / sessionId]
         Registry[Model Registry<br/>models.yaml 多 provider]
+        Workspace[Workspace<br/>项目骨架 / 会话目录]
+        Skills[Skills<br/>spawn CLI 安装 tide-*]
+        Archive[Archive<br/>PRD 去抖合并]
     end
     subgraph SDK[Claude Agent SDK]
         SdkLoop[tool_use 循环<br/>流事件]
@@ -47,11 +50,11 @@ flowchart TB
     Orchestrator -->|Pino → OTel| Logs
 ```
 
-| 层                   | 职责                                                                        |
-| -------------------- | --------------------------------------------------------------------------- |
-| **Web Portal**       | UI 展示、用户交互、SSE 流式渲染、资产管理                                   |
-| **Oceanus 编排层**   | 会话管理、上下文窗口、SSE 桥接、资产提取、模型路由、请求队列                |
-| **Claude Agent SDK** | Agent 循环、Skill 执行、MCP 工具调用、OTel 可观测性                         |
+| 层                   | 职责                                                                     |
+| -------------------- | ------------------------------------------------------------------------ |
+| **Web Portal**       | UI 展示、用户交互、SSE 流式渲染、资产管理                                |
+| **Oceanus 编排层**   | 会话管理、上下文窗口、SSE 桥接、资产提取、模型路由、请求队列             |
+| **Claude Agent SDK** | Agent 循环、Skill 执行、MCP 工具调用、OTel 可观测性                      |
 | **基础设施**         | PostgreSQL（映射 + 消息 SessionEntry）、SigNoz（日志）、Langfuse（追踪） |
 
 **核心原则：SDK 负责循环，Oceanus 负责编排。** SDK 内部的 tool_use 循环是黑盒，Oceanus 通过 stream_event 监听但不控制。
@@ -60,15 +63,18 @@ flowchart TB
 
 ## 模块说明
 
-| 模块          | 路径                                 | 职责                                                   |
-| ------------- | ------------------------------------ | ------------------------------------------------------ |
-| Auth          | `backend/src/auth/`                  | 测试账号登录，JWT Token 签发                           |
-| Project       | `backend/src/project/`               | 项目 CRUD                                              |
-| Session       | `backend/src/session/`               | 会话管理 + 级联清理（DB SessionEntry）                |
-| Chat          | `backend/src/chat/`                  | 消息转发 + SSE 流式推送 + 请求队列 + KeyPool           |
-| Agent         | `backend/src/agent/`                 | Claude Agent SDK 封装                                  |
-| ModelRegistry | `backend/src/common/model-registry/` | 多 provider 注册（models.yaml）+ Key 解析 + 可用性判定 |
-| Asset         | `backend/src/asset/`                 | 资产面板（PRD、诊断报告等）                            |
+| 模块          | 路径                                | 职责                                                                |
+| ------------- | ----------------------------------- | ------------------------------------------------------------------- |
+| Auth          | `server/src/auth/`                  | 测试账号登录，JWT Token 签发                                        |
+| Project       | `server/src/project/`               | 项目 CRUD（FS 先行创建 + 软删级联 + 回收站）                        |
+| Session       | `server/src/session/`               | 会话管理 + 级联清理（DB SessionEntry）                              |
+| Chat          | `server/src/chat/`                  | 消息转发 + SSE 流式推送 + 请求队列 + KeyPool + PRD 落盘             |
+| Agent         | `server/src/agent/`                 | Claude Agent SDK 封装（cwd/白名单/去 Bash/sessionId 隔离）          |
+| ModelRegistry | `server/src/common/model-registry/` | 多 provider 注册（models.yaml）+ Key 解析 + 可用性判定              |
+| Asset         | `server/src/asset/`                 | 资产面板（PRD、诊断报告等）                                         |
+| Workspace     | `server/src/workspace/`             | 项目骨架 / 会话目录（skills symlink）/ 回收站 / 残留处理            |
+| Skills        | `server/src/skills/`                | SkillsProvider 抽象 + 从 @deepstorm/cli 复制 tide-* 模板 + 版本标记 |
+| Archive       | `server/src/archive/`               | PRD 去抖触发 → 域归并 → 独立 LLM 合并写回 index.md                  |
 
 ---
 
@@ -216,16 +222,18 @@ erDiagram
     Project {
         int id PK
         string uuid UK
-        string projectName UK
+        string projectName
         string displayName
         string description
         boolean active
+        datetime deletedAt
     }
     ProjectMember {
         int id PK
         int projectId FK
         string username FK
         string role
+        datetime deletedAt
     }
     Session {
         int id PK
@@ -235,6 +243,7 @@ erDiagram
         string username
         int projectId FK
         datetime lastMessageAt
+        datetime deletedAt
     }
     SessionEntry {
         bigint id PK
@@ -242,6 +251,7 @@ erDiagram
         string sessionId
         string subpath
         json entry
+        datetime deletedAt
     }
     Asset {
         int id PK
@@ -251,6 +261,7 @@ erDiagram
         string content
         int sessionId FK
         int projectId FK
+        datetime deletedAt
     }
 ```
 

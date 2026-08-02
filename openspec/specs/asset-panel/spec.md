@@ -3,15 +3,20 @@
 ## Purpose
 
 前端资产面板能力：Tide-discuss 完成后自动提取 PRD 存入 assets 表，支持查看、下载、复制资产内容，并在无资产时展示空状态。
+
 ## Requirements
+
 ### Requirement: PRD 自动提取
 
-系统 SHALL 在 Tide-discuss 讨论完成后自动提取 PRD 内容存入 assets 表。
+系统 SHALL 在 Tide-discuss 讨论完成后自动提取 PRD 内容：存入 assets 表、落盘会话目录产出物，并触发 LLM 合并归档到 `shared/prd/`。
 
 #### Scenario: 讨论完成自动提取
 
 - **WHEN** Tide-discuss 工作流完成并产出 PRD
-- **THEN** 系统自动将 PRD Markdown 存入 assets 表（type: prd），通过 SSE 通知前端
+- **THEN** 系统自动将 PRD Markdown 存入 assets 表（type: prd）
+- **THEN** 系统将 PRD 写入会话目录产出物
+- **THEN** 系统触发去抖后的 LLM 合并归档（写入 `shared/prd/<域>/<feature>.md`）
+- **THEN** 通过 SSE 通知前端
 
 #### Scenario: 资产列表展示
 
@@ -65,4 +70,3 @@
 
 - **WHEN** 请求涉及其他用户的会话及其资产
 - **THEN** 服务端统一返回 404（不区分"不存在"与"无权限"）
-

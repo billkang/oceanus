@@ -15,3 +15,5 @@ __pycache__/
 .gstack/
 client/.angular/
 server/data/
+# 项目物理工作区（项目骨架 / 会话目录 / 回收站，运行时生成）
+server/projects/

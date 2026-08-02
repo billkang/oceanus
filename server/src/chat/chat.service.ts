@@ -7,6 +7,9 @@ import type {
 } from '@anthropic-ai/claude-agent-sdk';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Logger } from 'nestjs-pino';
+import { randomUUID } from 'node:crypto';
+import * as fsp from 'node:fs/promises';
+import * as path from 'node:path';
 import { AgentService } from '../agent/agent.service';
 import type { SseEvent } from '../agent/types/sse-events';
 import { SseEventType } from '../agent/types/sse-events';
@@ -16,6 +19,9 @@ import { ProjectService } from '../project/project.service';
 import { LangfuseService } from '../common/langfuse/langfuse.service';
 import { SessionLogService } from '../common/logging/session-log.service';
 import { RequestQueueService } from '../common/queue/request-queue.service';
+import { WorkspaceService } from '../workspace/workspace.service';
+import { SkillsProvider } from '../skills/skills-provider.interface';
+import { ArchiveService } from '../archive/archive.service';
 
 /** SSE 事件回调 */
 export type SseEventCallback = (event: SseEvent) => void;
@@ -101,6 +107,9 @@ export class ChatService {
     private readonly langfuseService: LangfuseService,
     private readonly sessionLogService: SessionLogService,
     private readonly requestQueue: RequestQueueService,
+    private readonly workspace: WorkspaceService,
+    private readonly skills: SkillsProvider,
+    private readonly archiveService: ArchiveService,
   ) {}
 
   /**
@@ -147,6 +156,26 @@ export class ChatService {
     // 解析分区键：新会话按 projectName 校验成员并分区，续传按会话归属校验所有者
     const { partitionKey, projectId } = await this.resolvePartition(normalizedSessionId, projectName, username);
 
+    // 会话目录隔离：首条消息预生成 sessionId 并创建专属目录；续传沿用既有 sessionId
+    let activeSessionId = normalizedSessionId;
+    if (isFirstMessage) {
+      activeSessionId = randomUUID();
+      await this.workspace.ensureSessionDir(projectName!, username, activeSessionId);
+      // 惰性刷新项目 skills（不阻断首轮流）
+      const projectRoot = this.workspace.paths.projectRoot(projectName!);
+      void this.skills.isOutdated(projectRoot).then((outdated) => {
+        if (outdated) {
+          return this.skills
+            .install(projectRoot)
+            .catch((e: Error) => this.logger.error(`skills 惰性刷新失败: ${e.message}`));
+        }
+      });
+    }
+    // 会话目录 = 项目 private/<username>/<sessionId>；公共需求区 = shared 只读参考
+    const projectNameResolved = partitionKey.split('/')[0];
+    const sessionDir = this.workspace.paths.sessionDir(projectNameResolved, username, activeSessionId!);
+    const sharedDir = this.workspace.paths.sharedRoot(projectNameResolved);
+
     // 并发消息处理：中断旧流
     if (!isFirstMessage) {
       const existingQuery = this.activeQueries.get(normalizedSessionId!);
@@ -180,10 +209,18 @@ export class ChatService {
 
       try {
         const result = isFirstMessage
-          ? await this.agentService.sendMessage(content, { partitionKey, ...(model ? { model } : {}) })
+          ? await this.agentService.sendMessage(content, {
+              partitionKey,
+              sessionDir,
+              sharedDir,
+              sessionId: activeSessionId,
+              ...(model ? { model } : {}),
+            })
           : await this.agentService.sendMessage(content, {
               resume: normalizedSessionId!,
               partitionKey,
+              sessionDir,
+              sharedDir,
               ...(model ? { model } : {}),
             });
 
@@ -196,7 +233,7 @@ export class ChatService {
         for await (const msg of stream) {
           // 首条消息：捕获 system/init 事件
           if (isFirstMessage && msg.type === 'system' && (msg as SDKSystemMessage).subtype === 'init') {
-            capturedSdkSessionId = (msg as SDKSystemMessage & { session_id?: string }).session_id;
+            capturedSdkSessionId = (msg as SDKSystemMessage & { session_id?: string }).session_id ?? activeSessionId;
 
             if (capturedSdkSessionId) {
               // 懒创建 Session 记录（归属当前用户）
@@ -496,6 +533,21 @@ export class ChatService {
       });
 
       this.logger.log(`Auto-extracted PRD asset ${asset.id} for session ${sdkSessionId}`);
+
+      // 落盘会话目录产出物（失败仅告警，不阻断 PRD 通知）
+      try {
+        const sessionDir = this.workspace.paths.sessionDir(session.project.projectName, session.username, sdkSessionId);
+        await fsp.mkdir(sessionDir, { recursive: true });
+        const safeTitle = title.replace(/[\\/:*?"<>|]/g, '_');
+        await fsp.writeFile(path.join(sessionDir, `${safeTitle}.md`), responseText, 'utf8');
+      } catch (e) {
+        this.logger.warn(`PRD 落盘失败: ${(e as Error).message}`);
+      }
+
+      // 触发去抖归档（失败仅告警，不阻断）
+      await this.archiveService.onPrdExtracted(sdkSessionId).catch((e: Error) => {
+        this.logger.warn(`归档触发失败: ${e.message}`);
+      });
 
       onEvent({
         type: SseEventType.AssetReady,
