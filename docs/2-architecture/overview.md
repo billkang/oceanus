@@ -1,6 +1,6 @@
 # 系统架构总览
 
-> Single Source of Truth | 更新: 2026-07-27
+> Single Source of Truth | 更新: 2026-08-02
 > 相关文档：[数据模型](data-model.md) | [ADR 索引](decisions/)
 
 ---
@@ -34,7 +34,6 @@ flowchart TB
     end
     subgraph Infra[基础设施]
         PG[(PostgreSQL)]
-        JSONL[(JSONL 文件)]
         Logs[SigNoz<br/>日志聚合]
         Langfuse[Langfuse]
     end
@@ -43,7 +42,7 @@ flowchart TB
     Orchestrator -->|query/resume| SDK
     SDK -->|Skills| Skills
     Orchestrator -->|Prisma| PG
-    SDK -->|JSONL| JSONL
+    SDK -->|SessionStore 适配器| PG
     Orchestrator -->|OTel| Langfuse
     Orchestrator -->|Pino → OTel| Logs
 ```
@@ -53,7 +52,7 @@ flowchart TB
 | **Web Portal**       | UI 展示、用户交互、SSE 流式渲染、资产管理                                   |
 | **Oceanus 编排层**   | 会话管理、上下文窗口、SSE 桥接、资产提取、模型路由、请求队列                |
 | **Claude Agent SDK** | Agent 循环、Skill 执行、MCP 工具调用、OTel 可观测性                         |
-| **基础设施**         | PostgreSQL（映射关系）、JSONL（消息内容）、SigNoz（日志）、Langfuse（追踪） |
+| **基础设施**         | PostgreSQL（映射 + 消息 SessionEntry）、SigNoz（日志）、Langfuse（追踪） |
 
 **核心原则：SDK 负责循环，Oceanus 负责编排。** SDK 内部的 tool_use 循环是黑盒，Oceanus 通过 stream_event 监听但不控制。
 
@@ -65,7 +64,7 @@ flowchart TB
 | ------------- | ------------------------------------ | ------------------------------------------------------ |
 | Auth          | `backend/src/auth/`                  | 测试账号登录，JWT Token 签发                           |
 | Project       | `backend/src/project/`               | 项目 CRUD                                              |
-| Session       | `backend/src/session/`               | 会话管理 + 级联清理（DB + JSONL）                      |
+| Session       | `backend/src/session/`               | 会话管理 + 级联清理（DB SessionEntry）                |
 | Chat          | `backend/src/chat/`                  | 消息转发 + SSE 流式推送 + 请求队列 + KeyPool           |
 | Agent         | `backend/src/agent/`                 | Claude Agent SDK 封装                                  |
 | ModelRegistry | `backend/src/common/model-registry/` | 多 provider 注册（models.yaml）+ Key 解析 + 可用性判定 |
@@ -120,14 +119,14 @@ flowchart LR
 
 ## 消息存储边界
 
-| 消息类型     | 来源         | 存储位置                       | 用途                |
-| ------------ | ------------ | ------------------------------ | ------------------- |
-| stream_event | SDK 流事件   | 日志（不存 DB）                | 前端 SSE 渲染、调试 |
-| user         | SDK query    | SDK JSONL 文件系统             | 历史展示            |
-| assistant    | SDK 回复     | SDK JSONL 文件系统             | 历史展示            |
-| result       | SDK 最终输出 | SDK JSONL 文件系统 + DB assets | 资产提取            |
+| 消息类型     | 来源         | 存储位置                          | 用途                |
+| ------------ | ------------ | --------------------------------- | ------------------- |
+| stream_event | SDK 流事件   | 日志（不存 DB）                   | 前端 SSE 渲染、调试 |
+| user         | SDK query    | Prisma `SessionEntry`             | 历史展示            |
+| assistant    | SDK 回复     | Prisma `SessionEntry`             | 历史展示            |
+| result       | SDK 最终输出 | Prisma `SessionEntry` + DB assets | 资产提取            |
 
-**原则**：消息完整内容由 SDK SessionStore（JSONL）管理，DB 仅存映射关系和最终资产。stream_event 不入持久化存储。
+**原则**：消息完整内容由 Prisma `SessionEntry` 按 `partitionKey = ${projectName}/${username}` 分区管理，sessions 表存映射关系。stream_event 不入持久化存储。
 
 详细决策见 [ADR-001: 消息存储与数据库策略](decisions/ADR-001-message-storage.md)。
 
@@ -200,9 +199,12 @@ flowchart LR
 ```mermaid
 erDiagram
     User ||--o{ Session : has
+    User ||--o{ ProjectMember : is_member
     Project ||--o{ Session : contains
+    Project ||--o{ ProjectMember : members
     Session ||--o{ Asset : produces
     Project ||--o{ Asset : optionally_has
+    Session ||--o{ SessionEntry : mirrored
 
     User {
         int id PK
@@ -214,18 +216,32 @@ erDiagram
     Project {
         int id PK
         string uuid UK
-        string name
+        string projectName UK
+        string displayName
         string description
         boolean active
+    }
+    ProjectMember {
+        int id PK
+        int projectId FK
+        string username FK
+        string role
     }
     Session {
         int id PK
         string sdkSessionId UK
         string title
         string status
-        string filePath
-        datetime lastMessageAt
+        string username
         int projectId FK
+        datetime lastMessageAt
+    }
+    SessionEntry {
+        bigint id PK
+        string partitionKey
+        string sessionId
+        string subpath
+        json entry
     }
     Asset {
         int id PK

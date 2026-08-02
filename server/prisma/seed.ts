@@ -6,18 +6,36 @@ const prisma = new PrismaClient();
 async function main() {
   const password = await bcrypt.hash('admin123', 10);
 
+  // 测试账号：displayName 必填
   const admin = await prisma.user.upsert({
     where: { username: 'admin' },
-    update: {},
+    update: { displayName: '管理员', active: true },
     create: {
       username: 'admin',
       password,
-      displayName: 'Admin',
+      displayName: '管理员',
       active: true,
     },
   });
 
-  console.log(`Seed user created: ${admin.username} (${admin.displayName})`);
+  // 示例项目：projectName 必填 + 自动 owner member
+  const project = await prisma.project.upsert({
+    where: { projectName: 'project-a' },
+    update: {},
+    create: {
+      projectName: 'project-a',
+      displayName: '项目 A',
+      description: '示例项目',
+    },
+  });
+
+  await prisma.projectMember.upsert({
+    where: { projectId_username: { projectId: project.id, username: admin.username } },
+    update: { role: 'owner' },
+    create: { projectId: project.id, username: admin.username, role: 'owner' },
+  });
+
+  console.log(`Seed done: ${admin.username} (${admin.displayName}), project ${project.projectName}`);
 }
 
 main()

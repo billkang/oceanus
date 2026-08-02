@@ -1,0 +1,59 @@
+{
+  "change": "session-partition-project-user",
+  "verifiedAt": "2026-08-02",
+  "tasks": { "total": 26, "passed": 26, "detail": "tasks.md 全部 26 项已勾选（含 10.1 全量验证）" },
+  "build": { "command": "npm run build", "exitCode": 0, "passed": true, "detail": "server nest build + client ng build（Application bundle generation complete）" },
+  "lint": { "command": "npm run lint", "exitCode": 0, "passed": true, "detail": "server eslint + client eslint（All files pass linting）" },
+  "typecheck": { "command": "npm run typecheck", "exitCode": 0, "passed": true, "detail": "server tsc --noEmit + client tsc --build --noEmit 均 clean" },
+  "tests": {
+    "server": { "command": "npx vitest run", "exitCode": 0, "passed": true, "total": 212, "passedCount": 212, "failedCount": 0, "duration": 1.73, "detail": "22 个测试文件全绿" },
+    "client": { "command": "npx vitest run", "exitCode": 1, "passed": false, "total": 135, "passedCount": 126, "failedCount": 9, "duration": 3.45, "detail": "9 项失败均为既有失败（chat.component 2 + user-menu 7，NG0950 必填 input 未赋值），经 git stash 回归证明与本 change 无关（见 summary 警告）" }
+  },
+  "acCoverage": {
+    "total": 18,
+    "covered": 18,
+    "uncovered": [],
+    "mapping": [
+      { "requirement": "project-management: 创建项目", "tests": ["server/src/project/project.service.spec.ts", "server/src/project/dto/create-project.dto.spec.ts", "client/src/app/project/project-list.component.spec.ts"] },
+      { "requirement": "project-management: 项目列表（成员过滤）", "tests": ["server/src/project/project.service.spec.ts", "server/src/project/project.controller.spec.ts"] },
+      { "requirement": "project-management: 进入项目（projectName 路由）", "tests": ["client/src/app/workspace/workspace.component.spec.ts", "server/src/project/project.controller.spec.ts"] },
+      { "requirement": "project-management: 编辑项目（owner + PATCH 不丢 description）", "tests": ["server/src/project/project.service.spec.ts", "client/src/app/project/project.service.spec.ts"] },
+      { "requirement": "project-management: 删除项目（$transaction 清 SessionEntry + 级联）", "tests": ["server/src/project/project.service.spec.ts"] },
+      { "requirement": "user-auth: 测试账号登录（displayName 必填）", "tests": ["server/src/auth/auth.service.spec.ts", "server/src/auth/auth.controller.spec.ts"] },
+      { "requirement": "chat-streaming: 发送消息（分区解析 / 非成员 404 / 续传所有权）", "tests": ["server/src/chat/chat.service.spec.ts", "server/src/chat/chat.controller.spec.ts", "client/src/app/chat/chat.service.spec.ts"] },
+      { "requirement": "chat-streaming: 流完成后处理管线（lastMessageAt → 标题 → PRD）", "tests": ["server/src/chat/chat.service.spec.ts"] },
+      { "requirement": "session-partitioning: 会话存储分区（projectName/username）", "tests": ["server/src/agent/stores/prisma.store.spec.ts", "server/src/session/session.service.spec.ts"] },
+      { "requirement": "session-partitioning: PrismaSessionStore 适配器（conformance）", "tests": ["server/src/agent/stores/prisma.store.spec.ts"] },
+      { "requirement": "session-partitioning: 分区解析（新会话 projectName / 续传 sessionId）", "tests": ["server/src/chat/chat.service.spec.ts", "server/src/chat/chat.controller.spec.ts"] },
+      { "requirement": "session-partitioning: 本地副本即弃（CLAUDE_CONFIG_DIR 临时目录）", "tests": ["server/src/agent/agent.service.spec.ts"] },
+      { "requirement": "session-partitioning: 会话记录清理（删除会话/项目）", "tests": ["server/src/session/session.service.spec.ts", "server/src/project/project.service.spec.ts"] },
+      { "requirement": "asset-panel: 资产访问权限（asset → session → username）", "tests": ["server/src/asset/asset.service.spec.ts", "server/src/asset/asset.controller.spec.ts"] },
+      { "requirement": "session-management: 创建会话（懒创建 + username/projectName 归属）", "tests": ["server/src/chat/chat.service.spec.ts", "server/src/session/session.service.spec.ts"] },
+      { "requirement": "session-management: 会话历史列表（当前用户 + 排序）", "tests": ["server/src/session/session.service.spec.ts", "server/src/session/session.controller.spec.ts", "client/src/app/session/session-list.component.spec.ts"] },
+      { "requirement": "session-management: 删除会话（$transaction 原子清理）", "tests": ["server/src/session/session.service.spec.ts"] },
+      { "requirement": "session-management: 会话 API 端点（scoped store / 所有权 404）", "tests": ["server/src/session/session.controller.spec.ts", "server/src/chat/chat.controller.spec.ts"] }
+    ]
+  },
+  "review": {
+    "findings": 8,
+    "blockers": 0,
+    "warnings": 8,
+    "suggestions": 0,
+    "reportPath": "reef-review 四 agent 并行（backend/frontend/infra/security）全部 Request Changes（0 🔴 Block），修复提交见 7d65a3d",
+    "fixedFindings": [
+      { "id": "fix-1", "severity": "major", "title": "PATCH 部分更新 description 传 null 导致数据丢失", "fix": "未提供字段改传 undefined（Prisma 忽略）", "verifiedBy": "project.service.spec.ts 新增『仅 displayName 不置空 description』回归测试" },
+      { "id": "fix-2", "severity": "major", "title": "会话不存在抛 Error 而非 404", "fix": "chat.service 三处改抛 NotFoundException", "verifiedBy": "chat.service.spec.ts 3 断言改 .rejects.toThrow(NotFoundException)" },
+      { "id": "fix-3", "severity": "major", "title": "cancel 动作缺会话归属校验（可中断他人流）", "fix": "controller cancel 前校验 session.username === 当前用户，非所有者 404", "verifiedBy": "chat.controller.spec.ts 新增非所有者 cancel 拒绝 + SSE error 测试" },
+      { "id": "fix-4", "severity": "major", "title": "OnPush 组件异步赋值不触发变更检测", "fix": "workspace.component projectName/projectTitle 改 signal", "verifiedBy": "workspace.component.spec.ts 新增『OnPush 异步赋值走 signal』3 测试" },
+      { "id": "fix-5", "severity": "minor", "title": "前端 update 用 PUT 与后端 PATCH 不一致", "fix": "project.service(client) 改 http.patch", "verifiedBy": "project.service.spec.ts 新增『update 应 PATCH』测试" },
+      { "id": "fix-6", "severity": "minor", "title": "plan/brainstorming 文档 nameEn/name 术语未标注改名", "fix": "两文档加术语时间线提示（nameEn→projectName, name→displayName）", "verifiedBy": "文档审阅" },
+      { "id": "fix-7", "severity": "minor", "title": "ADR-001 未标记被取代、ADR-014 未登记索引", "fix": "ADR README 索引同步（ADR-001 ⚠️ 被 ADR-014 取代 + 新增 ADR-014 行）", "verifiedBy": "文档审阅" }
+    ]
+  },
+  "summary": "PASSED with warnings",
+  "warnings": [
+    "client 全量套件 9 项失败均为既有失败（chat.component.spec.ts 2 + user-menu.component.spec.ts 7，NG0950 必填 input 未赋值 / limitNotice reset / confirmChoice 透传），经 git stash push → 干净树重跑 → 相同 9 失败 → pop 证明与本 change 无关，不在本次范围修复（避免 scope creep）。本 change 相关 client 测试（project.service / workspace / chat.service / session-list / project-list 等）全绿。",
+    "ng test（vitest 单 worker 非隔离模式）存在 NG0400 平台冲突运行器缺陷，全量验证改用 npx vitest run（threads 池 + isolate）绕过；这是既有测试基础设施问题，非本 change 引入。"
+  ],
+  "assessment": "Change 目标全部达成：会话存储迁至 Postgres SessionEntry、按 (projectName × username) 分区、owner 隔离统一 404、原子事务删除、projectName 路由改造。server 212/212 + typecheck/build/lint 全绿；client 相关测试 + typecheck/build/lint 全绿。仅有 9 项既有 client 测试失败与本 change 无关（已在 warnings 记录）。"
+}

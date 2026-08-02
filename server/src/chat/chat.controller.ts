@@ -1,5 +1,5 @@
-import type { Response } from 'express';
-import { BadRequestException, Body, Controller, Get, Param, Post, Res, UseGuards } from '@nestjs/common';
+import type { Request, Response } from 'express';
+import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import { ThrottlerGuard } from '@nestjs/throttler';
@@ -8,6 +8,7 @@ import { SseEventType } from '../agent/types/sse-events';
 import type { SseEvent } from '../agent/types/sse-events';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ModelRegistryService } from '../common/model-registry/model-registry.service';
+import { SessionService } from '../session/session.service';
 import { ChatService } from './chat.service';
 import type { ChatAction } from './dto/chat-request.dto';
 import { ChatRequestDto } from './dto/chat-request.dto';
@@ -20,6 +21,7 @@ import { ChatRequestDto } from './dto/chat-request.dto';
 export class ChatController {
   constructor(
     private readonly chatService: ChatService,
+    private readonly sessionService: SessionService,
     private readonly logger: Logger,
     private readonly modelRegistry: ModelRegistryService,
   ) {}
@@ -27,8 +29,9 @@ export class ChatController {
   @Post('chat')
   @ApiOperation({ summary: '统一聊天端点，根据 action 分发处理' })
   @SkipThrottle({ global: false, user: false })
-  async chat(@Body() dto: ChatRequestDto, @Res() res: Response): Promise<void> {
+  async chat(@Body() dto: ChatRequestDto, @Req() req: Request, @Res() res: Response): Promise<void> {
     this.validateRequest(dto);
+    const username = (req.user as { username: string }).username;
 
     // 设置 SSE 响应头
     res.setHeader('Content-Type', 'text/event-stream');
@@ -47,7 +50,8 @@ export class ChatController {
           await this.chatService.sendAndStream({
             content: dto.content!,
             sdkSessionId: dto.sessionId,
-            projectId: dto.projectId,
+            projectName: dto.projectName,
+            username,
             ...(dto.model ? { model: dto.model } : {}),
             onEvent: pushEvent,
           });
@@ -57,15 +61,20 @@ export class ChatController {
           await this.chatService.confirmAndStream({
             sdkSessionId: dto.sessionId!,
             confirmOption: dto.confirmOption!,
+            username,
             ...(dto.model ? { model: dto.model } : {}),
             onEvent: pushEvent,
           });
           break;
 
-        case 'cancel':
+        case 'cancel': {
+          // 取消也须校验会话归属（非所有者统一 404，防 IDOR 中断他人流）
+          const session = await this.sessionService.getBySdkSessionId(dto.sessionId!);
+          if (session.username !== username) throw new NotFoundException('会话不存在');
           await this.chatService.cancelResponse(dto.sessionId!);
           pushEvent({ type: SseEventType.StreamComplete, data: {} });
           break;
+        }
       }
     } catch (error) {
       const errMsg = (error as Error).message;
@@ -78,8 +87,9 @@ export class ChatController {
 
   @Get('sessions/:sdkSessionId/messages')
   @ApiOperation({ summary: '获取会话历史消息' })
-  async getMessages(@Param('sdkSessionId') sdkSessionId: string) {
-    return this.chatService.getSessionMessages(sdkSessionId);
+  async getMessages(@Param('sdkSessionId') sdkSessionId: string, @Req() req: Request) {
+    const username = (req.user as { username: string }).username;
+    return this.chatService.getSessionMessages(sdkSessionId, username);
   }
 
   @Get('models')

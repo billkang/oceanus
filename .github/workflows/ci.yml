@@ -46,6 +46,23 @@ jobs:
     strategy:
       matrix:
         filter: ['@oceanus/server', '@oceanus/client']
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: root
+          POSTGRES_PASSWORD: '123456'
+          POSTGRES_DB: oceanus
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U root -d oceanus"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      # server 集成测试（prisma.store.spec.ts）依赖真实 Postgres
+      DATABASE_URL: postgresql://root:123456@localhost:5432/oceanus
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -57,6 +74,9 @@ jobs:
       - name: Generate Prisma client (server only)
         if: matrix.filter == '@oceanus/server'
         run: pnpm --filter ${{ matrix.filter }} exec prisma generate
+      - name: Init database schema (server only)
+        if: matrix.filter == '@oceanus/server'
+        run: pnpm --filter @oceanus/server exec prisma db push --skip-generate
       - run: pnpm --filter ${{ matrix.filter }} test
 
   build:

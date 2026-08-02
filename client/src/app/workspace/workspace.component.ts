@@ -6,6 +6,7 @@ import { AuthService } from '../auth/auth.service';
 import { ChatComponent } from '../chat/chat.component';
 import { FilePanelComponent } from '../file-panel/file-panel.component';
 import { UserMenuComponent } from '../user-menu/user-menu.component';
+import { ProjectService } from '../project/project.service';
 import type { User } from '../auth/auth.service';
 
 const LS_KEY_LEFT = 'oceanus_workspace_left_collapsed';
@@ -35,7 +36,7 @@ const LS_KEY_RIGHT = 'oceanus_workspace_right_collapsed';
           </p-button>
           <div class="w-px h-5 bg-indigo-100"></div>
           <h1 class="font-semibold text-gray-900 text-sm truncate max-w-[300px]">
-            {{ projectName }}
+            {{ projectTitle() }}
           </h1>
         </div>
 
@@ -56,7 +57,7 @@ const LS_KEY_RIGHT = 'oceanus_workspace_right_collapsed';
         >
           @if (!leftCollapsed()) {
             <app-session-list
-              [projectId]="projectId"
+              [projectName]="projectName()"
               (create)="onCreateSession()"
               (sessionSelect)="onSelectSession($event)"
               (sessionRemoved)="onSessionRemoved($event)"
@@ -72,7 +73,7 @@ const LS_KEY_RIGHT = 'oceanus_workspace_right_collapsed';
             <app-chat
               class="flex-1 min-h-0 flex flex-col"
               [sessionId]="activeSessionId()"
-              [projectId]="projectId"
+              [projectName]="projectName()"
               (assetReady)="onAssetReady($event)"
               (titleUpdated)="onTitleUpdated($event)"
               (sessionCreated)="onSessionCreated($event)"
@@ -92,7 +93,7 @@ const LS_KEY_RIGHT = 'oceanus_workspace_right_collapsed';
                            l1.92-6.02A1 1 0 0 0 11 14z"/>
                   </svg>
                 </div>
-                <h2 class="text-xl font-bold text-gray-900 mb-2">欢迎来到「{{ projectName }}」</h2>
+                <h2 class="text-xl font-bold text-gray-900 mb-2">欢迎来到「{{ projectTitle() }}」</h2>
                 <p class="text-sm text-gray-500 mb-8">在开始之前，请选择本次会话使用的专家</p>
 
                 <div class="w-full max-w-md space-y-2 mb-8">
@@ -183,6 +184,7 @@ export class WorkspaceComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   protected readonly authService = inject(AuthService);
+  private readonly projectService = inject(ProjectService);
 
   readonly leftCollapsed = signal(localStorage.getItem(LS_KEY_LEFT) === 'true');
   readonly rightCollapsed = signal(localStorage.getItem(LS_KEY_RIGHT) === 'true');
@@ -194,8 +196,10 @@ export class WorkspaceComponent implements OnInit {
   readonly sessionListComp = viewChild(SessionListComponent);
   readonly chatComp = viewChild(ChatComponent);
 
-  projectId = 0;
-  projectName = '';
+  /** 路由参数：项目 projectName（唯一标识） */
+  readonly projectName = signal('');
+  /** 项目显示名称（来自 ProjectService，用于顶栏/欢迎页） */
+  readonly projectTitle = signal('');
 
   constructor() {
     effect(() => {
@@ -210,13 +214,22 @@ export class WorkspaceComponent implements OnInit {
 
   ngOnInit(): void {
     this.route.params.subscribe((p) => {
-      this.projectId = Number(p['projectId']);
-      this.loadProjectName();
+      this.projectName.set(p['projectName']);
+      this.loadProjectTitle();
     });
   }
 
-  private loadProjectName(): void {
-    this.projectName = '智能客服系统';
+  /** 按 projectName 拉取项目详情，顶栏显示项目名称；失败时降级显示 projectName 本身 */
+  private loadProjectTitle(): void {
+    if (!this.projectName()) return;
+    this.projectService.getById(this.projectName()).subscribe({
+      next: (project) => {
+        this.projectTitle.set(project.displayName);
+      },
+      error: () => {
+        this.projectTitle.set(this.projectName());
+      },
+    });
   }
 
   onCreateSession(): void {

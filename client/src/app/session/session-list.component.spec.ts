@@ -8,7 +8,7 @@ const mockSession = (overrides: Partial<Session> = {}): Session => ({
   sdkSessionId: 'sdk-1',
   title: '会话1',
   status: 'active',
-  filePath: null,
+  username: 'admin',
   lastMessageAt: null,
   projectId: 1,
   createdAt: '2026-01-01T00:00:00Z',

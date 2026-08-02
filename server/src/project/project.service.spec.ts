@@ -8,28 +8,17 @@ describe('ProjectService', () => {
   let service: ProjectService;
   let prisma: PrismaService;
 
-  const mockProjects = [
-    {
-      id: 1,
-      uuid: 'uuid-1',
-      name: '项目A',
-      description: '描述A',
-      active: true,
-      createdAt: new Date('2026-07-22'),
-      updatedAt: new Date('2026-07-23'),
-      _count: { sessions: 3 },
-    },
-    {
-      id: 2,
-      uuid: 'uuid-2',
-      name: '项目B',
-      description: null,
-      active: true,
-      createdAt: new Date('2026-07-21'),
-      updatedAt: new Date('2026-07-22'),
-      _count: { sessions: 0 },
-    },
-  ];
+  const mockProject = {
+    id: 1,
+    uuid: 'uuid-1',
+    displayName: '项目A',
+    projectName: 'project-a',
+    description: '描述A',
+    active: true,
+    createdAt: new Date('2026-07-22'),
+    updatedAt: new Date('2026-07-23'),
+    _count: { sessions: 3 },
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -45,6 +34,14 @@ describe('ProjectService', () => {
               update: vi.fn(),
               delete: vi.fn(),
             },
+            projectMember: {
+              findUnique: vi.fn(),
+              create: vi.fn(),
+            },
+            sessionEntry: {
+              deleteMany: vi.fn(),
+            },
+            $transaction: vi.fn(),
           },
         },
       ],
@@ -59,138 +56,207 @@ describe('ProjectService', () => {
   });
 
   describe('list', () => {
-    it('应返回项目列表（含会话数量，按更新时间倒序）', async () => {
-      vi.spyOn(prisma.project, 'findMany').mockResolvedValue(mockProjects);
+    it('只返回当前用户是成员的项目，并带出角色', async () => {
+      const projects = [
+        { ...mockProject, members: [{ role: 'owner' }] },
+        {
+          ...mockProject,
+          id: 2,
+          projectName: 'project-b',
+          members: [{ role: 'member' }],
+          _count: { sessions: 0 },
+        },
+      ];
+      vi.spyOn(prisma.project, 'findMany').mockResolvedValue(projects as never);
 
-      const result = await service.list();
+      const result = await service.list('admin');
 
-      expect(result).toHaveLength(2);
-      expect(result[0]).toHaveProperty('sessionCount', 3);
-      expect(result[0]).toHaveProperty('name', '项目A');
       expect(prisma.project.findMany).toHaveBeenCalledWith({
-        where: { active: true },
+        where: { active: true, members: { some: { username: 'admin' } } },
         orderBy: { updatedAt: 'desc' },
-        include: { _count: { select: { sessions: true } } },
+        include: {
+          _count: { select: { sessions: true } },
+          members: { where: { username: 'admin' }, select: { role: true } },
+        },
       });
+      expect(result).toHaveLength(2);
+      expect(result[0]).toHaveProperty('role', 'owner');
+      expect(result[0]).toHaveProperty('sessionCount', 3);
+      expect(result[1]).toHaveProperty('role', 'member');
     });
 
-    it('无项目时应返回空数组', async () => {
+    it('非成员（无项目）时应返回空数组', async () => {
       vi.spyOn(prisma.project, 'findMany').mockResolvedValue([]);
 
-      const result = await service.list();
+      const result = await service.list('other');
 
       expect(result).toEqual([]);
     });
   });
 
-  describe('getById', () => {
-    it('应返回项目详情（含会话数量）', async () => {
-      vi.spyOn(prisma.project, 'findUnique').mockResolvedValue(mockProjects[0]);
+  describe('assertMember', () => {
+    it('成员存在时正常通过', async () => {
+      vi.spyOn(prisma.project, 'findUnique').mockResolvedValue(mockProject as never);
+      vi.spyOn(prisma.projectMember, 'findUnique').mockResolvedValue({ role: 'member' } as never);
 
-      const result = await service.getById(1);
-
-      expect(result).toHaveProperty('sessionCount', 3);
-      expect(result).toHaveProperty('name', '项目A');
+      await expect(service.assertMember('project-a', 'admin')).resolves.toBeUndefined();
+      expect(prisma.projectMember.findUnique).toHaveBeenCalledWith({
+        where: { projectId_username: { projectId: 1, username: 'admin' } },
+      });
     });
 
-    it('项目不存在时应抛出 NotFoundException', async () => {
+    it('非成员统一抛 404', async () => {
+      vi.spyOn(prisma.project, 'findUnique').mockResolvedValue(mockProject as never);
+      vi.spyOn(prisma.projectMember, 'findUnique').mockResolvedValue(null);
+
+      await expect(service.assertMember('project-a', 'other')).rejects.toThrow(NotFoundException);
+    });
+
+    it('项目不存在时抛 404', async () => {
       vi.spyOn(prisma.project, 'findUnique').mockResolvedValue(null);
 
-      await expect(service.getById(999)).rejects.toThrow(NotFoundException);
+      await expect(service.assertMember('missing', 'admin')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('getById', () => {
+    it('成员应返回项目详情', async () => {
+      vi.spyOn(prisma.project, 'findUnique').mockResolvedValue(mockProject as never);
+      vi.spyOn(prisma.projectMember, 'findUnique').mockResolvedValue({ role: 'member' } as never);
+
+      const result = await service.getById('project-a', 'admin');
+
+      expect(result).toHaveProperty('sessionCount', 3);
+      expect(result).toHaveProperty('projectName', 'project-a');
+    });
+
+    it('非成员访问抛 404', async () => {
+      vi.spyOn(prisma.project, 'findUnique').mockResolvedValue(mockProject as never);
+      vi.spyOn(prisma.projectMember, 'findUnique').mockResolvedValue(null);
+
+      await expect(service.getById('project-a', 'other')).rejects.toThrow(NotFoundException);
     });
   });
 
   describe('create', () => {
-    it('应创建项目并返回（含会话数量 0）', async () => {
-      const dto = { name: '新项目', description: '描述' };
+    it('事务内创建项目 + 自动 owner 成员', async () => {
+      const dto = { displayName: '新项目', projectName: 'Project-A', description: '描述' };
       const created = {
+        ...mockProject,
         id: 3,
-        uuid: 'uuid-3',
-        name: '新项目',
-        description: '描述',
-        active: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        displayName: '新项目',
+        projectName: 'Project-A',
         _count: { sessions: 0 },
       };
-      vi.spyOn(prisma.project, 'create').mockResolvedValue(created);
+      const tx = {
+        project: { create: vi.fn().mockResolvedValue(created) },
+        projectMember: { create: vi.fn().mockResolvedValue({ id: 1 }) },
+      };
+      vi.mocked(prisma.$transaction).mockImplementation(async (cb: any) => cb(tx));
 
-      const result = await service.create(dto);
+      const result = await service.create(dto, 'admin');
 
-      expect(result).toHaveProperty('name', '新项目');
-      expect(result).toHaveProperty('sessionCount', 0);
-      expect(prisma.project.create).toHaveBeenCalledWith({
-        data: { name: '新项目', description: '描述' },
+      expect(prisma.$transaction).toHaveBeenCalled();
+      expect(tx.project.create).toHaveBeenCalledWith({
+        data: { displayName: '新项目', projectName: 'Project-A', description: '描述' },
         include: { _count: { select: { sessions: true } } },
       });
+      expect(tx.projectMember.create).toHaveBeenCalledWith({
+        data: { projectId: 3, username: 'admin', role: 'owner' },
+      });
+      expect(result).toHaveProperty('sessionCount', 0);
     });
 
     it('description 为空字符串时应存为 null', async () => {
-      const dto = { name: '新项目', description: '' };
-      const created = {
-        id: 4,
-        uuid: 'uuid-4',
-        name: '新项目',
-        description: null,
-        active: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        _count: { sessions: 0 },
+      const dto = { displayName: '新项目', projectName: 'project-a', description: '' };
+      const created = { ...mockProject, id: 4, displayName: '新项目', _count: { sessions: 0 } };
+      const tx = {
+        project: { create: vi.fn().mockResolvedValue(created) },
+        projectMember: { create: vi.fn().mockResolvedValue({ id: 1 }) },
       };
-      vi.spyOn(prisma.project, 'create').mockResolvedValue(created);
+      vi.mocked(prisma.$transaction).mockImplementation(async (cb: any) => cb(tx));
 
-      const result = await service.create(dto);
+      await service.create(dto, 'admin');
 
-      expect(result).toHaveProperty('name', '新项目');
-      expect(prisma.project.create).toHaveBeenCalledWith({
-        data: { name: '新项目', description: null },
+      expect(tx.project.create).toHaveBeenCalledWith({
+        data: { displayName: '新项目', projectName: 'project-a', description: null },
         include: { _count: { select: { sessions: true } } },
       });
     });
   });
 
   describe('update', () => {
-    it('应更新项目名称和描述', async () => {
-      vi.spyOn(prisma.project, 'findUnique').mockResolvedValue(mockProjects[0]);
-      const updated = {
-        ...mockProjects[0],
-        name: '新名称',
-        description: '新描述',
-        _count: { sessions: 3 },
-      };
-      vi.spyOn(prisma.project, 'update').mockResolvedValue(updated);
+    it('owner 可编辑项目（projectName 不可改）', async () => {
+      vi.spyOn(prisma.project, 'findUnique').mockResolvedValue(mockProject as never);
+      vi.spyOn(prisma.projectMember, 'findUnique').mockResolvedValue({ role: 'owner' } as never);
+      const updated = { ...mockProject, displayName: '新名称' };
+      vi.spyOn(prisma.project, 'update').mockResolvedValue(updated as never);
 
-      const result = await service.update(1, { name: '新名称', description: '新描述' });
+      const result = await service.update('project-a', 'admin', { displayName: '新名称' });
 
-      expect(result).toHaveProperty('name', '新名称');
+      expect(result).toHaveProperty('displayName', '新名称');
       expect(prisma.project.update).toHaveBeenCalledWith({
-        where: { id: 1 },
-        data: { name: '新名称', description: '新描述' },
+        where: { projectName: 'project-a' },
+        data: { displayName: '新名称', description: undefined },
         include: { _count: { select: { sessions: true } } },
       });
     });
 
-    it('项目不存在时应抛出 NotFoundException', async () => {
-      vi.spyOn(prisma.project, 'findUnique').mockResolvedValue(null);
+    it('部分更新：仅提供 displayName 时不应把 description 置空（保留原值）', async () => {
+      vi.spyOn(prisma.project, 'findUnique').mockResolvedValue(mockProject as never);
+      vi.spyOn(prisma.projectMember, 'findUnique').mockResolvedValue({ role: 'owner' } as never);
+      vi.spyOn(prisma.project, 'update').mockResolvedValue(mockProject as never);
 
-      await expect(service.update(999, { name: '新名称' })).rejects.toThrow(NotFoundException);
+      await service.update('project-a', 'admin', { displayName: '新名称' });
+
+      const call = (prisma.project.update as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(call.data.description).toBeUndefined();
+      expect(call.data.displayName).toBe('新名称');
+    });
+
+    it('部分更新：提供 description 时正常写入', async () => {
+      vi.spyOn(prisma.project, 'findUnique').mockResolvedValue(mockProject as never);
+      vi.spyOn(prisma.projectMember, 'findUnique').mockResolvedValue({ role: 'owner' } as never);
+      vi.spyOn(prisma.project, 'update').mockResolvedValue(mockProject as never);
+
+      await service.update('project-a', 'admin', { displayName: '新名称', description: '新描述' });
+
+      const call = (prisma.project.update as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(call.data.description).toBe('新描述');
+    });
+
+    it('非 owner 编辑抛 404 且不触发更新', async () => {
+      vi.spyOn(prisma.project, 'findUnique').mockResolvedValue(mockProject as never);
+      vi.spyOn(prisma.projectMember, 'findUnique').mockResolvedValue({ role: 'member' } as never);
+
+      await expect(service.update('project-a', 'member1', { displayName: 'x' })).rejects.toThrow(NotFoundException);
+      expect(prisma.project.update).not.toHaveBeenCalled();
     });
   });
 
   describe('delete', () => {
-    it('应删除项目', async () => {
-      vi.spyOn(prisma.project, 'findUnique').mockResolvedValue(mockProjects[0]);
-      vi.spyOn(prisma.project, 'delete').mockResolvedValue(mockProjects[0]);
+    it('owner 删除：先清 SessionEntry 再删项目（$transaction）', async () => {
+      vi.spyOn(prisma.project, 'findUnique').mockResolvedValue(mockProject as never);
+      vi.spyOn(prisma.projectMember, 'findUnique').mockResolvedValue({ role: 'owner' } as never);
+      vi.spyOn(prisma.sessionEntry, 'deleteMany').mockResolvedValue({ count: 5 } as never);
+      vi.spyOn(prisma.project, 'delete').mockResolvedValue(mockProject as never);
+      vi.mocked(prisma.$transaction).mockResolvedValue([]);
 
-      await service.delete(1);
+      await service.delete('project-a', 'admin');
 
-      expect(prisma.project.delete).toHaveBeenCalledWith({ where: { id: 1 } });
+      expect(prisma.sessionEntry.deleteMany).toHaveBeenCalledWith({
+        where: { partitionKey: { startsWith: 'project-a/' } },
+      });
+      expect(prisma.project.delete).toHaveBeenCalledWith({ where: { projectName: 'project-a' } });
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     });
 
-    it('项目不存在时应抛出 NotFoundException', async () => {
-      vi.spyOn(prisma.project, 'findUnique').mockResolvedValue(null);
+    it('非 owner 删除抛 404 且不触发删除', async () => {
+      vi.spyOn(prisma.project, 'findUnique').mockResolvedValue(mockProject as never);
+      vi.spyOn(prisma.projectMember, 'findUnique').mockResolvedValue({ role: 'member' } as never);
 
-      await expect(service.delete(999)).rejects.toThrow(NotFoundException);
+      await expect(service.delete('project-a', 'member1')).rejects.toThrow(NotFoundException);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     });
   });
 });

@@ -70,31 +70,27 @@ describe('AuthService', () => {
       });
     });
 
-    it('当 displayName 为空时应该返回 username', async () => {
+    it('displayName 直接透传，不做 username 回退（schema 已必填）', async () => {
       vi.spyOn(prisma.user, 'findUnique').mockResolvedValue({
         ...mockUser,
-        displayName: null,
+        displayName: '',
       });
 
       const result = await service.login('admin', 'oceanus123');
 
-      expect(result.user.displayName).toBe('admin');
+      expect(result.user.displayName).toBe('');
     });
 
     it('用户不存在时应抛出 UnauthorizedException', async () => {
       vi.spyOn(prisma.user, 'findUnique').mockResolvedValue(null);
 
-      await expect(service.login('nonexistent', 'any')).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(service.login('nonexistent', 'any')).rejects.toThrow(UnauthorizedException);
     });
 
     it('密码错误时应抛出 UnauthorizedException', async () => {
       vi.spyOn(prisma.user, 'findUnique').mockResolvedValue(mockUser);
 
-      await expect(service.login('admin', 'wrongpassword')).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(service.login('admin', 'wrongpassword')).rejects.toThrow(UnauthorizedException);
     });
 
     it('用户不活跃时应抛出 UnauthorizedException', async () => {
@@ -103,9 +99,7 @@ describe('AuthService', () => {
         active: false,
       });
 
-      await expect(service.login('admin', 'oceanus123')).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(service.login('admin', 'oceanus123')).rejects.toThrow(UnauthorizedException);
     });
 
     it('错误信息不应区分"用户不存在"和"密码错误"（防止枚举攻击）', async () => {
@@ -115,9 +109,7 @@ describe('AuthService', () => {
 
       // 密码错误
       vi.spyOn(prisma.user, 'findUnique').mockResolvedValue(mockUser);
-      const err2 = await service
-        .login('admin', 'wrong')
-        .catch((e) => e);
+      const err2 = await service.login('admin', 'wrong').catch((e) => e);
 
       expect(err1.message).toBe(err2.message);
     });
@@ -144,9 +136,7 @@ describe('AuthService', () => {
     it('用户不存在时应抛出 UnauthorizedException', async () => {
       vi.spyOn(prisma.user, 'findUnique').mockResolvedValue(null);
 
-      await expect(service.getUserById(999)).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(service.getUserById(999)).rejects.toThrow(UnauthorizedException);
     });
   });
 });

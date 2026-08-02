@@ -6,7 +6,7 @@
 
 | 编号                                                  | 标题                   | 日期       | 领域      |
 | ----------------------------------------------------- | ---------------------- | ---------- | --------- |
-| [ADR-001](ADR-001-message-storage.md)                 | 消息存储与数据库策略   | 2026-07-23 | 数据层    |
+| [ADR-001](ADR-001-message-storage.md)                 | 消息存储与数据库策略 ⚠️ 被 ADR-014 取代 | 2026-07-23 | 数据层    |
 | [ADR-002](ADR-002-ai-engine-selection.md)             | AI 引擎选型            | 2026-07-23 | AI        |
 | [ADR-003](ADR-003-concurrency-architecture.md)        | 并发控制架构           | 2026-07-26 | 架构      |
 | [ADR-004](ADR-004-observability-logging.md)           | 可观测性与日志方案     | 2026-07-26 | 运维      |
@@ -19,6 +19,7 @@
 | [ADR-010](ADR-010-infrastructure-containerization.md) | 工程基础设施与容器化   | 2026-07-25 | 运维      |
 | [ADR-012](ADR-012-turn-budget-limits.md)              | 轮次与预算上限管控     | 2026-08-01 | AI        |
 | [ADR-013](ADR-013-multi-model-runtime-switching.md)   | 多模型注册与运行时切换 | 2026-08-01 | AI        |
+| [ADR-014](ADR-014-session-partitioning.md)            | 会话消息落库 SessionEntry + 分区隔离 | 2026-08-02 | 数据层    |
 
 ---
 

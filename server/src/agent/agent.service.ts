@@ -8,11 +8,13 @@ import { deleteSession, getSessionMessages, query } from '@anthropic-ai/claude-a
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Logger } from 'nestjs-pino';
+import * as os from 'node:os';
 import * as path from 'node:path';
+import { PrismaService } from '../prisma/prisma.service';
 import { LangfuseService } from '../common/langfuse/langfuse.service';
 import { KeyPoolService } from '../common/key-pool/key-pool.service';
 import { ModelRegistryService } from '../common/model-registry/model-registry.service';
-import { FileSystemSessionStore } from './stores/file-system.store';
+import { PrismaSessionStore } from './stores/prisma.store';
 
 /**
  * Agent 服务
@@ -32,17 +34,18 @@ export class AgentService {
   private static readonly DEFAULT_MAX_TURNS = 15;
   private static readonly DEFAULT_MAX_BUDGET_USD = 1.0;
 
-  private readonly sessionStore: FileSystemSessionStore;
-
   constructor(
     private readonly logger: Logger,
     private readonly configService: ConfigService,
     private readonly langfuseService: LangfuseService,
     private readonly keyPool: KeyPoolService,
     private readonly modelRegistry: ModelRegistryService,
-  ) {
-    const storeDir = path.resolve(process.cwd(), 'data', 'sessions');
-    this.sessionStore = new FileSystemSessionStore(storeDir);
+    private readonly prisma: PrismaService,
+  ) {}
+
+  /** 按分区构建 scoped store（分区键 = ${projectName}/${username}），忽略 SDK 的 cwd-derived projectKey */
+  createStore(partitionKey: string): PrismaSessionStore {
+    return new PrismaSessionStore(this.prisma, partitionKey);
   }
 
   /** AI 服务是否可用（委托注册表：注册表有效 且 默认 provider Key 可解析） */
@@ -94,12 +97,15 @@ export class AgentService {
    * 发送消息并获取 SDK 流式响应
    *
    * @param content - 用户消息内容
-   * @param options - resume: SDK 会话 ID（续传时必传，首条不传）；model: provider 逻辑名（缺省用默认 provider）
+   * @param options - resume: SDK 会话 ID（续传时必传，首条不传）；model: provider 逻辑名（缺省用默认 provider）；partitionKey: 会话分区键（${projectName}/${username}，必传）
    * @returns stream + interrupt
    */
-  async sendMessage(content: string, options?: { resume?: string; model?: string }) {
+  async sendMessage(content: string, options?: { resume?: string; model?: string; partitionKey: string }) {
     if (!this.isAvailable()) {
       throw new Error('AI 服务未配置');
+    }
+    if (!options?.partitionKey) {
+      throw new Error('缺少会话分区键 partitionKey');
     }
 
     // 解析所选 provider（含 modelId 与 Key）；未知/不可用抛 400
@@ -110,6 +116,10 @@ export class AgentService {
     if (options?.resume) {
       sessionOptions.resume = options.resume;
     }
+    sessionOptions.sessionStore = this.createStore(options.partitionKey);
+
+    // 本地会话副本指向临时目录即弃，Postgres 为唯一权威副本（服务器磁盘零累积）
+    const configDir = path.join(os.tmpdir(), 'oceanus-agent-config', options.partitionKey, Date.now().toString());
 
     try {
       const { maxTurns, maxBudgetUsd } = this.resolveAgentLimits();
@@ -118,7 +128,6 @@ export class AgentService {
         prompt: content,
         options: {
           ...sessionOptions,
-          sessionStore: this.sessionStore,
           includePartialMessages: true,
           agent: 'oceanus-tide',
           agents: {
@@ -145,6 +154,7 @@ export class AgentService {
           model: provider.modelId,
           env: {
             ...process.env,
+            CLAUDE_CONFIG_DIR: configDir,
             ANTHROPIC_BASE_URL: provider.baseUrl,
             ANTHROPIC_API_KEY: provider.apiKey,
             ANTHROPIC_SMALL_FAST_MODEL: provider.smallFastModel,
@@ -242,20 +252,26 @@ export class AgentService {
 
   /**
    * 获取会话历史消息
+   *
+   * @param sessionId - SDK 会话 ID
+   * @param partitionKey - 会话分区键（${projectName}/${username}），调用方按 Session 记录推导
    */
-  async getSessionMessages(sessionId: string) {
+  async getSessionMessages(sessionId: string, partitionKey: string) {
     return getSessionMessages(sessionId, {
-      sessionStore: this.sessionStore,
+      sessionStore: this.createStore(partitionKey),
     });
   }
 
   /**
    * 销毁 SDK 会话
+   *
+   * @param sessionId - SDK 会话 ID
+   * @param partitionKey - 会话分区键（${projectName}/${username}），调用方按 Session 记录推导
    */
-  async destroyAgent(sessionId: string) {
+  async destroyAgent(sessionId: string, partitionKey: string) {
     this.logger.debug(`Destroying agent session ${sessionId}`);
     await deleteSession(sessionId, {
-      sessionStore: this.sessionStore,
+      sessionStore: this.createStore(partitionKey),
     });
   }
 }

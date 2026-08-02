@@ -5,13 +5,14 @@ import type {
   SDKResultSuccess,
   SDKSystemMessage,
 } from '@anthropic-ai/claude-agent-sdk';
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Logger } from 'nestjs-pino';
 import { AgentService } from '../agent/agent.service';
 import type { SseEvent } from '../agent/types/sse-events';
 import { SseEventType } from '../agent/types/sse-events';
 import { AssetService } from '../asset/asset.service';
 import { SessionService } from '../session/session.service';
+import { ProjectService } from '../project/project.service';
 import { LangfuseService } from '../common/langfuse/langfuse.service';
 import { SessionLogService } from '../common/logging/session-log.service';
 import { RequestQueueService } from '../common/queue/request-queue.service';
@@ -23,7 +24,10 @@ export type SseEventCallback = (event: SseEvent) => void;
 export interface SendStreamOptions {
   content: string;
   sdkSessionId?: string;
-  projectId?: string | number;
+  /** 项目 projectName，新会话首条消息必传（成员校验 + 分区推导） */
+  projectName?: string;
+  /** 当前登录用户（req.user.username） */
+  username: string;
   /** provider 逻辑名（缺省用默认 provider） */
   model?: string;
   onEvent: SseEventCallback;
@@ -33,6 +37,8 @@ export interface SendStreamOptions {
 export interface ConfirmStreamOptions {
   sdkSessionId: string;
   confirmOption: string;
+  /** 当前登录用户（req.user.username） */
+  username: string;
   /** provider 逻辑名（缺省用默认 provider） */
   model?: string;
   onEvent: SseEventCallback;
@@ -90,11 +96,33 @@ export class ChatService {
     private readonly logger: Logger,
     private readonly agentService: AgentService,
     private readonly sessionService: SessionService,
+    private readonly projectService: ProjectService,
     private readonly assetService: AssetService,
     private readonly langfuseService: LangfuseService,
     private readonly sessionLogService: SessionLogService,
     private readonly requestQueue: RequestQueueService,
   ) {}
+
+  /**
+   * 解析会话分区键。
+   *
+   * 新会话（无 sdkSessionId）：按 projectName 校验成员并推导 partitionKey；
+   * 续传（有 sdkSessionId）：按会话归属校验所有者，统一 404 不泄露会话存在性。
+   */
+  private async resolvePartition(
+    sdkSessionId: string | undefined,
+    projectName: string | undefined,
+    username: string,
+  ): Promise<{ partitionKey: string; projectId?: number }> {
+    if (!sdkSessionId) {
+      if (!projectName) throw new BadRequestException('缺少项目标识 projectName');
+      const project = await this.projectService.getById(projectName, username); // 非成员 404
+      return { partitionKey: `${project.projectName}/${username}`, projectId: project.id };
+    }
+    const session = await this.sessionService.getBySdkSessionId(sdkSessionId);
+    if (session.username !== username) throw new NotFoundException('会话不存在');
+    return { partitionKey: `${session.project.projectName}/${session.username}`, projectId: session.projectId };
+  }
 
   /**
    * 发送消息并处理 SDK 事件流
@@ -105,10 +133,10 @@ export class ChatService {
    * 请求通过 RequestQueue 分发：并发未满时直接执行，超限时排队等待。
    */
   async sendAndStream(options: SendStreamOptions): Promise<void> {
-    const { content, sdkSessionId, projectId, model, onEvent } = options;
+    const { content, sdkSessionId, projectName, username, model, onEvent } = options;
 
     if (!content || content.trim().length === 0) {
-      throw new Error('消息内容不能为空');
+      throw new BadRequestException('消息内容不能为空');
     }
 
     // 新会话 / 续传（__new__ 是前端的无效占位标记，等同无 sessionId）
@@ -116,15 +144,11 @@ export class ChatService {
     let capturedSdkSessionId = normalizedSessionId;
     const isFirstMessage = !normalizedSessionId;
 
-    // 续传时验证 session 存在
-    if (!isFirstMessage) {
-      try {
-        await this.sessionService.getBySdkSessionId(normalizedSessionId!);
-      } catch {
-        throw new Error(`会话不存在: ${normalizedSessionId}`);
-      }
+    // 解析分区键：新会话按 projectName 校验成员并分区，续传按会话归属校验所有者
+    const { partitionKey, projectId } = await this.resolvePartition(normalizedSessionId, projectName, username);
 
-      // 并发消息处理：中断旧流
+    // 并发消息处理：中断旧流
+    if (!isFirstMessage) {
       const existingQuery = this.activeQueries.get(normalizedSessionId!);
       if (existingQuery) {
         this.logger.debug(`Interrupting existing query for session ${normalizedSessionId}`);
@@ -156,11 +180,10 @@ export class ChatService {
 
       try {
         const result = isFirstMessage
-          ? model
-            ? await this.agentService.sendMessage(content, { model })
-            : await this.agentService.sendMessage(content)
+          ? await this.agentService.sendMessage(content, { partitionKey, ...(model ? { model } : {}) })
           : await this.agentService.sendMessage(content, {
               resume: normalizedSessionId!,
+              partitionKey,
               ...(model ? { model } : {}),
             });
 
@@ -176,9 +199,8 @@ export class ChatService {
             capturedSdkSessionId = (msg as SDKSystemMessage & { session_id?: string }).session_id;
 
             if (capturedSdkSessionId) {
-              // 懒创建 Session 记录
-              const numericProjectId = projectId ? Number(projectId) : 1;
-              await this.sessionService.create(numericProjectId, capturedSdkSessionId);
+              // 懒创建 Session 记录（归属当前用户）
+              await this.sessionService.create(projectId!, capturedSdkSessionId, username);
 
               this.langfuseService.createTrace(capturedSdkSessionId, undefined, model);
 
@@ -343,13 +365,12 @@ export class ChatService {
    * 用户确认选择——等价于 resume 发一条消息
    */
   async confirmAndStream(options: ConfirmStreamOptions): Promise<void> {
-    const { sdkSessionId, confirmOption, model, onEvent } = options;
+    const { sdkSessionId, confirmOption, username, model, onEvent } = options;
 
-    // 验证 session 存在
-    try {
-      await this.sessionService.getBySdkSessionId(sdkSessionId);
-    } catch {
-      throw new Error(`会话不存在: ${sdkSessionId}`);
+    // 校验会话归属（非所有者统一 404，不泄露会话存在性）
+    const session = await this.sessionService.getBySdkSessionId(sdkSessionId);
+    if (session.username !== username) {
+      throw new NotFoundException('会话不存在');
     }
 
     onEvent({ type: SseEventType.ConfirmAccepted, data: {} });
@@ -358,6 +379,7 @@ export class ChatService {
     await this.sendAndStream({
       content: confirmOption,
       sdkSessionId,
+      username,
       ...(model ? { model } : {}),
       onEvent,
     });
@@ -392,6 +414,9 @@ export class ChatService {
     onEvent: SseEventCallback,
     responseText: string,
   ): Promise<void> {
+    // 0. 更新最后消息时间
+    await this.sessionService.touch(sdkSessionId);
+
     // 1. 标题异步更新
     onEvent({
       type: SseEventType.ToolInProgress,
@@ -587,9 +612,14 @@ export class ChatService {
   }
 
   /**
-   * 获取会话历史消息（通过 SDK）
+   * 获取会话历史消息（通过 SDK，校验会话归属）
    */
-  async getSessionMessages(sdkSessionId: string) {
-    return this.agentService.getSessionMessages(sdkSessionId);
+  async getSessionMessages(sdkSessionId: string, username: string) {
+    // 校验会话归属（非所有者统一 404）
+    const session = await this.sessionService.getBySdkSessionId(sdkSessionId);
+    if (session.username !== username) {
+      throw new NotFoundException('会话不存在');
+    }
+    return this.agentService.getSessionMessages(sdkSessionId, `${session.project.projectName}/${session.username}`);
   }
 }
