@@ -7,7 +7,7 @@ export interface Session {
   sdkSessionId: string;
   title: string;
   status: string;
-  filePath: string | null;
+  username: string;
   lastMessageAt: string | null;
   projectId: number;
   createdAt: string;
@@ -18,8 +18,8 @@ export interface Session {
 export class SessionService {
   private readonly http = inject(HttpClient);
 
-  listByProject(projectId: number): Observable<Session[]> {
-    return this.http.get<Session[]>(`/api/v1/projects/${projectId}/sessions`);
+  listByProject(projectName: string): Observable<Session[]> {
+    return this.http.get<Session[]>(`/api/v1/projects/${projectName}/sessions`);
   }
 
   deleteBySdkSessionId(sdkSessionId: string): Observable<void> {

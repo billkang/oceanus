@@ -34,7 +34,7 @@ export const routes: Routes = [
     ],
   },
   {
-    path: 'workspace/:projectId',
+    path: 'workspace/:projectName',
     canActivate: [authGuard],
     loadComponent: () => import('./workspace/workspace.component').then(m => m.WorkspaceComponent),
   },

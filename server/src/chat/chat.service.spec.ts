@@ -1,10 +1,12 @@
 import type { TestingModule } from '@nestjs/testing';
 import { Test } from '@nestjs/testing';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Logger } from 'nestjs-pino';
 import { ChatService } from './chat.service';
 import { AgentService } from '../agent/agent.service';
 import { SessionService } from '../session/session.service';
 import { AssetService } from '../asset/asset.service';
+import { ProjectService } from '../project/project.service';
 import { LangfuseService } from '../common/langfuse/langfuse.service';
 import { SessionLogService } from '../common/logging/session-log.service';
 import { RequestQueueService } from '../common/queue/request-queue.service';
@@ -13,6 +15,11 @@ describe('ChatService', () => {
   let service: ChatService;
   let agentService: AgentService;
   let sessionService: SessionService;
+  let projectService: ProjectService;
+
+  const TEST_USERNAME = 'admin';
+  const TEST_PROJECT = { id: 1, projectName: 'project-a', displayName: '项目A', sessionCount: 0 };
+  const TEST_PARTITION = 'project-a/admin';
 
   const mockLogger = {
     log: vi.fn(),
@@ -31,6 +38,12 @@ describe('ChatService', () => {
     getBySdkSessionId: vi.fn(),
     create: vi.fn(),
     updateTitle: vi.fn(),
+    touch: vi.fn().mockResolvedValue(undefined),
+  };
+
+  const mockProjectService = {
+    getById: vi.fn().mockResolvedValue(TEST_PROJECT),
+    assertMember: vi.fn(),
   };
 
   const mockAssetService = {
@@ -73,6 +86,7 @@ describe('ChatService', () => {
         { provide: Logger, useValue: mockLogger },
         { provide: AgentService, useValue: mockAgentService },
         { provide: SessionService, useValue: mockSessionService },
+        { provide: ProjectService, useValue: mockProjectService },
         { provide: AssetService, useValue: mockAssetService },
         { provide: LangfuseService, useValue: mockLangfuseService },
         { provide: SessionLogService, useValue: mockSessionLogService },
@@ -83,6 +97,7 @@ describe('ChatService', () => {
     service = module.get<ChatService>(ChatService);
     agentService = module.get<AgentService>(AgentService);
     sessionService = module.get<SessionService>(SessionService);
+    projectService = module.get<ProjectService>(ProjectService);
   });
 
   afterEach(() => {
@@ -96,10 +111,43 @@ describe('ChatService', () => {
     };
   }
 
+  /** 续传场景的会话（含用户名与项目 projectName，用于分区推导） */
+  const makeSession = (overrides: Record<string, unknown> = {}) => ({
+    id: 1,
+    sdkSessionId: 'sdk-uuid',
+    title: '新会话',
+    username: TEST_USERNAME,
+    projectId: TEST_PROJECT.id,
+    project: { id: TEST_PROJECT.id, projectName: TEST_PROJECT.projectName, displayName: TEST_PROJECT.displayName },
+    ...overrides,
+  });
+
   describe('sendAndStream（首条消息 — 无 sdkSessionId）', () => {
     const SDK_SESSION_ID = 'sdk-uuid-new';
 
-    it('首条消息应调用 sendMessage 不带 resume', async () => {
+    it('缺少 projectName 时抛 400（新会话首条必传，符合 API Contract）', async () => {
+      await expect(
+        service.sendAndStream({ content: 'hello', username: TEST_USERNAME, onEvent: vi.fn() }),
+      ).rejects.toThrow(BadRequestException);
+      expect(agentService.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it('非项目成员时抛 404 且不调用 sendMessage', async () => {
+      // mockRejectedValueOnce：仅本次调用拒绝，避免污染后续用例（clearAllMocks 不重置实现）
+      mockProjectService.getById.mockRejectedValueOnce(new NotFoundException('项目不存在'));
+
+      await expect(
+        service.sendAndStream({
+          content: 'hello',
+          projectName: 'project-a',
+          username: TEST_USERNAME,
+          onEvent: vi.fn(),
+        }),
+      ).rejects.toThrow(NotFoundException);
+      expect(agentService.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it('首条消息应按 (projectName/username) 推导分区并调用 sendMessage 不带 resume', async () => {
       const mockGen = (async function* () {
         yield { type: 'system', subtype: 'init', session_id: SDK_SESSION_ID };
         yield {
@@ -112,16 +160,22 @@ describe('ChatService', () => {
       mockSessionService.create.mockResolvedValue({ id: 1, sdkSessionId: SDK_SESSION_ID, title: '新会话' });
 
       const events: any[] = [];
-      await service.sendAndStream({ content: 'hello', onEvent: (e) => events.push(e) });
+      await service.sendAndStream({
+        content: 'hello',
+        projectName: 'project-a',
+        username: TEST_USERNAME,
+        onEvent: (e) => events.push(e),
+      });
 
-      expect(agentService.sendMessage).toHaveBeenCalledWith('hello');
+      expect(projectService.getById).toHaveBeenCalledWith('project-a', TEST_USERNAME);
+      expect(agentService.sendMessage).toHaveBeenCalledWith('hello', { partitionKey: TEST_PARTITION });
       expect(agentService.sendMessage).not.toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({ resume: expect.anything() }),
       );
     });
 
-    it('首条消息应从 init 事件捕获 session_id 并创建 Session', async () => {
+    it('首条消息应从 init 事件捕获 session_id 并创建 Session（记录归属用户）', async () => {
       const mockGen = (async function* () {
         yield { type: 'system', subtype: 'init', session_id: SDK_SESSION_ID };
         yield {
@@ -134,9 +188,14 @@ describe('ChatService', () => {
       mockSessionService.create.mockResolvedValue({ id: 1, sdkSessionId: SDK_SESSION_ID, title: '新会话' });
 
       const events: any[] = [];
-      await service.sendAndStream({ content: 'hello', projectId: '1', onEvent: (e) => events.push(e) });
+      await service.sendAndStream({
+        content: 'hello',
+        projectName: 'project-a',
+        username: TEST_USERNAME,
+        onEvent: (e) => events.push(e),
+      });
 
-      expect(sessionService.create).toHaveBeenCalledWith(1, SDK_SESSION_ID);
+      expect(sessionService.create).toHaveBeenCalledWith(TEST_PROJECT.id, SDK_SESSION_ID, TEST_USERNAME);
       expect(events.some((e) => e.type === 'session_created')).toBe(true);
       const sessionCreated = events.find((e) => e.type === 'session_created');
       expect(sessionCreated?.data.sdkSessionId).toBe(SDK_SESSION_ID);
@@ -149,7 +208,12 @@ describe('ChatService', () => {
       })();
       mockAgentService.sendMessage.mockResolvedValue(mockQueryResult(mockGen));
 
-      await service.sendAndStream({ content: 'hello', onEvent: vi.fn() });
+      await service.sendAndStream({
+        content: 'hello',
+        projectName: 'project-a',
+        username: TEST_USERNAME,
+        onEvent: vi.fn(),
+      });
 
       expect(mockLangfuseService.createTrace).toHaveBeenCalledWith(SDK_SESSION_ID, undefined, undefined);
     });
@@ -164,6 +228,8 @@ describe('ChatService', () => {
       let capturedSdkSessionId = '';
       await service.sendAndStream({
         content: 'hello',
+        projectName: 'project-a',
+        username: TEST_USERNAME,
         onEvent: (e) => {
           if (e.type === 'session_created') {
             capturedSdkSessionId = e.data.sdkSessionId;
@@ -174,21 +240,36 @@ describe('ChatService', () => {
       expect(capturedSdkSessionId).toBe(SDK_SESSION_ID);
     });
 
-    it('空消息应抛出错误', async () => {
-      await expect(service.sendAndStream({ content: '', onEvent: vi.fn() })).rejects.toThrow('消息内容不能为空');
+    it('流完成后应更新 lastMessageAt（touch）', async () => {
+      const mockGen = (async function* () {
+        yield { type: 'system', subtype: 'init', session_id: SDK_SESSION_ID };
+        yield { type: 'assistant', message: { content: [{ type: 'text', text: 'hi' }] } } as any;
+      })();
+      mockAgentService.sendMessage.mockResolvedValue(mockQueryResult(mockGen));
+      mockSessionService.create.mockResolvedValue({ id: 1, sdkSessionId: SDK_SESSION_ID, title: '新会话' });
+
+      await service.sendAndStream({
+        content: 'hello',
+        projectName: 'project-a',
+        username: TEST_USERNAME,
+        onEvent: vi.fn(),
+      });
+
+      expect(mockSessionService.touch).toHaveBeenCalledWith(SDK_SESSION_ID);
+    });
+
+    it('空消息应抛 400（BadRequestException）', async () => {
+      await expect(
+        service.sendAndStream({ content: '', username: TEST_USERNAME, projectName: 'project-a', onEvent: vi.fn() }),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
   describe('sendAndStream（续传 — 有 sdkSessionId）', () => {
     const SDK_SESSION_ID = 'sdk-uuid-existing';
 
-    it('续传应调用 sendMessage 带 resume: sessionId', async () => {
-      mockSessionService.getBySdkSessionId.mockResolvedValue({
-        id: 1,
-        sdkSessionId: SDK_SESSION_ID,
-        title: '新会话',
-        projectId: 1,
-      });
+    it('续传应按会话推导分区并调用 sendMessage 带 resume + partitionKey', async () => {
+      mockSessionService.getBySdkSessionId.mockResolvedValue(makeSession({ sdkSessionId: SDK_SESSION_ID }));
 
       const mockGen = (async function* () {
         yield {
@@ -199,19 +280,22 @@ describe('ChatService', () => {
       })();
       mockAgentService.sendMessage.mockResolvedValue(mockQueryResult(mockGen));
 
-      await service.sendAndStream({ content: '继续说', sdkSessionId: SDK_SESSION_ID, onEvent: vi.fn() });
+      await service.sendAndStream({
+        content: '继续说',
+        sdkSessionId: SDK_SESSION_ID,
+        username: TEST_USERNAME,
+        onEvent: vi.fn(),
+      });
 
       expect(mockSessionService.getBySdkSessionId).toHaveBeenCalledWith(SDK_SESSION_ID);
-      expect(agentService.sendMessage).toHaveBeenCalledWith('继续说', { resume: SDK_SESSION_ID });
+      expect(agentService.sendMessage).toHaveBeenCalledWith('继续说', {
+        resume: SDK_SESSION_ID,
+        partitionKey: TEST_PARTITION,
+      });
     });
 
     it('续传不应创建新 session', async () => {
-      mockSessionService.getBySdkSessionId.mockResolvedValue({
-        id: 1,
-        sdkSessionId: SDK_SESSION_ID,
-        title: '新会话',
-        projectId: 1,
-      });
+      mockSessionService.getBySdkSessionId.mockResolvedValue(makeSession({ sdkSessionId: SDK_SESSION_ID }));
 
       const mockGen = (async function* () {
         yield { type: 'assistant', message: { content: [] } } as any;
@@ -222,6 +306,7 @@ describe('ChatService', () => {
       await service.sendAndStream({
         content: '继续说',
         sdkSessionId: SDK_SESSION_ID,
+        username: TEST_USERNAME,
         onEvent: (e) => events.push(e),
       });
 
@@ -229,11 +314,30 @@ describe('ChatService', () => {
       expect(events.some((e) => e.type === 'session_created')).toBe(false);
     });
 
-    it('sessionId 不存在时应抛出错误', async () => {
-      mockSessionService.getBySdkSessionId.mockRejectedValue(new Error('会话不存在'));
+    it('非所有者续传应抛 404（不泄露会话存在性）', async () => {
+      mockSessionService.getBySdkSessionId.mockResolvedValue(makeSession({ sdkSessionId: SDK_SESSION_ID }));
 
       await expect(
-        service.sendAndStream({ content: 'hi', sdkSessionId: 'non-existent', onEvent: vi.fn() }),
+        service.sendAndStream({
+          content: 'hi',
+          sdkSessionId: SDK_SESSION_ID,
+          username: 'other',
+          onEvent: vi.fn(),
+        }),
+      ).rejects.toThrow(NotFoundException);
+      expect(agentService.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it('sessionId 不存在时应抛出错误', async () => {
+      mockSessionService.getBySdkSessionId.mockRejectedValue(new NotFoundException('会话不存在'));
+
+      await expect(
+        service.sendAndStream({
+          content: 'hi',
+          sdkSessionId: 'non-existent',
+          username: TEST_USERNAME,
+          onEvent: vi.fn(),
+        }),
       ).rejects.toThrow();
     });
   });
@@ -256,7 +360,12 @@ describe('ChatService', () => {
       mockSessionService.create.mockResolvedValue({ id: 1, sdkSessionId: 'sdk-uuid', title: '新会话' });
 
       const events: any[] = [];
-      await service.sendAndStream({ content: 'hi', onEvent: (e) => events.push(e) });
+      await service.sendAndStream({
+        content: 'hi',
+        projectName: 'project-a',
+        username: TEST_USERNAME,
+        onEvent: (e) => events.push(e),
+      });
 
       expect(events.some((e) => e.type === 'message_start')).toBe(true);
       expect(events.some((e) => e.type === 'message_delta')).toBe(true);
@@ -277,19 +386,25 @@ describe('ChatService', () => {
       mockSessionService.create.mockResolvedValue({ id: 1, sdkSessionId: 'sdk-uuid', title: '新会话' });
 
       const events: any[] = [];
-      await service.sendAndStream({ content: 'hi', onEvent: (e) => events.push(e) });
+      await service.sendAndStream({
+        content: 'hi',
+        projectName: 'project-a',
+        username: TEST_USERNAME,
+        onEvent: (e) => events.push(e),
+      });
 
       expect(events.some((e) => e.type === 'tool_in_progress')).toBe(true);
     });
 
     it('SDK 错误时应在 SSE 事件中推送 error', async () => {
       mockAgentService.sendMessage.mockRejectedValue(new Error('SDK 连接失败'));
-      mockSessionService.getBySdkSessionId.mockResolvedValue({ id: 1, sdkSessionId: 'sdk-uuid', projectId: 1 });
+      mockSessionService.getBySdkSessionId.mockResolvedValue(makeSession());
 
       const events: any[] = [];
       await service.sendAndStream({
         content: 'hello',
         sdkSessionId: 'sdk-uuid',
+        username: TEST_USERNAME,
         onEvent: (e) => events.push(e),
       });
 
@@ -312,7 +427,12 @@ describe('ChatService', () => {
       mockSessionService.create.mockResolvedValue({ id: 1, sdkSessionId: 'sdk-uuid', title: '新会话' });
 
       const events: any[] = [];
-      await service.sendAndStream({ content: 'hi', onEvent: (e) => events.push(e) });
+      await service.sendAndStream({
+        content: 'hi',
+        projectName: 'project-a',
+        username: TEST_USERNAME,
+        onEvent: (e) => events.push(e),
+      });
 
       const toolOptions = events.find((e) => e.type === 'tool_options');
       expect(toolOptions).toBeDefined();
@@ -327,7 +447,12 @@ describe('ChatService', () => {
       mockAgentService.sendMessage.mockResolvedValue(mockQueryResult(mockGen));
       mockSessionService.create.mockResolvedValue({ id: 1, sdkSessionId: 'sdk-uuid', title: '新会话' });
 
-      await service.sendAndStream({ content: 'hi', onEvent: vi.fn() });
+      await service.sendAndStream({
+        content: 'hi',
+        projectName: 'project-a',
+        username: TEST_USERNAME,
+        onEvent: vi.fn(),
+      });
 
       expect((service as any).activeQueries.has('sdk-uuid')).toBe(false);
     });
@@ -337,12 +462,7 @@ describe('ChatService', () => {
     const SDK_SESSION_ID = 'sdk-uuid-limit';
 
     beforeEach(() => {
-      mockSessionService.getBySdkSessionId.mockResolvedValue({
-        id: 1,
-        sdkSessionId: SDK_SESSION_ID,
-        title: '新会话',
-        projectId: 1,
-      });
+      mockSessionService.getBySdkSessionId.mockResolvedValue(makeSession({ sdkSessionId: SDK_SESSION_ID }));
     });
 
     it('达到轮次上限应发 turn_limit_reached 且不重复发 error', async () => {
@@ -360,7 +480,12 @@ describe('ChatService', () => {
       mockAgentService.sendMessage.mockResolvedValue(mockQueryResult(mockGen));
 
       const events: any[] = [];
-      await service.sendAndStream({ content: 'hi', sdkSessionId: SDK_SESSION_ID, onEvent: (e) => events.push(e) });
+      await service.sendAndStream({
+        content: 'hi',
+        sdkSessionId: SDK_SESSION_ID,
+        username: TEST_USERNAME,
+        onEvent: (e) => events.push(e),
+      });
 
       const limitEvent = events.find((e) => e.type === 'turn_limit_reached');
       expect(limitEvent).toBeDefined();
@@ -384,7 +509,12 @@ describe('ChatService', () => {
       mockAgentService.sendMessage.mockResolvedValue(mockQueryResult(mockGen));
 
       const events: any[] = [];
-      await service.sendAndStream({ content: 'hi', sdkSessionId: SDK_SESSION_ID, onEvent: (e) => events.push(e) });
+      await service.sendAndStream({
+        content: 'hi',
+        sdkSessionId: SDK_SESSION_ID,
+        username: TEST_USERNAME,
+        onEvent: (e) => events.push(e),
+      });
 
       const limitEvent = events.find((e) => e.type === 'budget_limit_reached');
       expect(limitEvent).toBeDefined();
@@ -406,7 +536,12 @@ describe('ChatService', () => {
       })();
       mockAgentService.sendMessage.mockResolvedValue(mockQueryResult(mockGen));
 
-      await service.sendAndStream({ content: 'hi', sdkSessionId: SDK_SESSION_ID, onEvent: vi.fn() });
+      await service.sendAndStream({
+        content: 'hi',
+        sdkSessionId: SDK_SESSION_ID,
+        username: TEST_USERNAME,
+        onEvent: vi.fn(),
+      });
 
       expect(mockSessionService.updateTitle).not.toHaveBeenCalled();
       expect(mockAssetService.create).not.toHaveBeenCalled();
@@ -435,7 +570,12 @@ describe('ChatService', () => {
       mockAgentService.sendMessage.mockResolvedValue(mockQueryResult(mockGen));
 
       const events: any[] = [];
-      await service.sendAndStream({ content: 'hi', sdkSessionId: SDK_SESSION_ID, onEvent: (e) => events.push(e) });
+      await service.sendAndStream({
+        content: 'hi',
+        sdkSessionId: SDK_SESSION_ID,
+        username: TEST_USERNAME,
+        onEvent: (e) => events.push(e),
+      });
 
       const errorEvents = events.filter((e) => e.type === 'error');
       expect(errorEvents).toHaveLength(1);
@@ -458,32 +598,37 @@ describe('ChatService', () => {
       mockLangfuseService.flushTrace.mockRejectedValueOnce(new Error('langfuse down'));
 
       const events: any[] = [];
-      await service.sendAndStream({ content: 'hi', sdkSessionId: SDK_SESSION_ID, onEvent: (e) => events.push(e) });
+      await service.sendAndStream({
+        content: 'hi',
+        sdkSessionId: SDK_SESSION_ID,
+        username: TEST_USERNAME,
+        onEvent: (e) => events.push(e),
+      });
 
       expect(events.some((e) => e.type === 'error')).toBe(false);
       expect(mockLogger.warn).toHaveBeenCalled();
     });
 
-    it('限额应在 query 开始时解析一次（成功流也应调用，不重复解析 env）', async () => {
+    it('限额应在 query 开始时解析一次（成功流也不重复解析 env）', async () => {
       const mockGen = (async function* () {
         yield { type: 'assistant', message: { content: [] } } as any;
       })();
       mockAgentService.sendMessage.mockResolvedValue(mockQueryResult(mockGen));
 
-      await service.sendAndStream({ content: 'hi', sdkSessionId: SDK_SESSION_ID, onEvent: vi.fn() });
+      await service.sendAndStream({
+        content: 'hi',
+        sdkSessionId: SDK_SESSION_ID,
+        username: TEST_USERNAME,
+        onEvent: vi.fn(),
+      });
 
       expect(mockAgentService.getAgentLimits).toHaveBeenCalledTimes(1);
     });
   });
 
   describe('confirmAndStream', () => {
-    it('confirm 应调用 sendMessage 带 resume 和 confirmOption 作为 content', async () => {
-      mockSessionService.getBySdkSessionId.mockResolvedValue({
-        id: 1,
-        sdkSessionId: 'sdk-uuid',
-        title: '新会话',
-        projectId: 1,
-      });
+    it('confirm 应校验所有者并调用 sendMessage 带 resume + partitionKey', async () => {
+      mockSessionService.getBySdkSessionId.mockResolvedValue(makeSession());
 
       const mockGen = (async function* () {
         yield {
@@ -498,12 +643,32 @@ describe('ChatService', () => {
       await service.confirmAndStream({
         sdkSessionId: 'sdk-uuid',
         confirmOption: '方案A',
+        username: TEST_USERNAME,
         onEvent: (e) => events.push(e),
       });
 
-      expect(agentService.sendMessage).toHaveBeenCalledWith('方案A', { resume: 'sdk-uuid' });
+      expect(agentService.sendMessage).toHaveBeenCalledWith('方案A', {
+        resume: 'sdk-uuid',
+        partitionKey: TEST_PARTITION,
+      });
       expect(events.some((e) => e.type === 'confirm_accepted')).toBe(true);
       expect(events.some((e) => e.type === 'stream_complete')).toBe(true);
+    });
+
+    it('confirm 非所有者应抛 404 且不发 confirm_accepted', async () => {
+      mockSessionService.getBySdkSessionId.mockResolvedValue(makeSession());
+
+      const events: any[] = [];
+      await expect(
+        service.confirmAndStream({
+          sdkSessionId: 'sdk-uuid',
+          confirmOption: '方案A',
+          username: 'other',
+          onEvent: (e) => events.push(e),
+        }),
+      ).rejects.toThrow(NotFoundException);
+      expect(events.some((e) => e.type === 'confirm_accepted')).toBe(false);
+      expect(agentService.sendMessage).not.toHaveBeenCalled();
     });
   });
 
@@ -515,35 +680,56 @@ describe('ChatService', () => {
       };
     };
 
-    it('首条消息带 model 时传给 sendMessage 第二参数 { model }', async () => {
+    it('首条消息带 model 时传给 sendMessage 第二参数 { model, partitionKey }', async () => {
       mockAgentService.sendMessage.mockResolvedValue(mockQueryResult(genText()));
 
-      await service.sendAndStream({ content: 'hello', model: 'kimi', onEvent: vi.fn() });
+      await service.sendAndStream({
+        content: 'hello',
+        projectName: 'project-a',
+        username: TEST_USERNAME,
+        model: 'kimi',
+        onEvent: vi.fn(),
+      });
 
-      expect(agentService.sendMessage).toHaveBeenCalledWith('hello', { model: 'kimi' });
+      expect(agentService.sendMessage).toHaveBeenCalledWith('hello', { model: 'kimi', partitionKey: TEST_PARTITION });
     });
 
-    it('续传带 model 时传给 sendMessage { resume, model }', async () => {
-      mockSessionService.getBySdkSessionId.mockResolvedValue({ id: 1, sdkSessionId: 'sdk-uuid', title: '新会话' });
+    it('续传带 model 时传给 sendMessage { resume, model, partitionKey }', async () => {
+      mockSessionService.getBySdkSessionId.mockResolvedValue(makeSession());
       mockAgentService.sendMessage.mockResolvedValue(mockQueryResult(genText()));
 
-      await service.sendAndStream({ content: 'hello', sdkSessionId: 'sdk-uuid', model: 'kimi', onEvent: vi.fn() });
+      await service.sendAndStream({
+        content: 'hello',
+        sdkSessionId: 'sdk-uuid',
+        username: TEST_USERNAME,
+        model: 'kimi',
+        onEvent: vi.fn(),
+      });
 
-      expect(agentService.sendMessage).toHaveBeenCalledWith('hello', { resume: 'sdk-uuid', model: 'kimi' });
+      expect(agentService.sendMessage).toHaveBeenCalledWith('hello', {
+        resume: 'sdk-uuid',
+        model: 'kimi',
+        partitionKey: TEST_PARTITION,
+      });
     });
 
     it('confirm 带 model 时透传给 sendAndStream → sendMessage', async () => {
-      mockSessionService.getBySdkSessionId.mockResolvedValue({ id: 1, sdkSessionId: 'sdk-uuid', title: '新会话' });
+      mockSessionService.getBySdkSessionId.mockResolvedValue(makeSession());
       mockAgentService.sendMessage.mockResolvedValue(mockQueryResult(genText()));
 
       await service.confirmAndStream({
         sdkSessionId: 'sdk-uuid',
         confirmOption: '方案A',
+        username: TEST_USERNAME,
         model: 'kimi',
         onEvent: vi.fn(),
       });
 
-      expect(agentService.sendMessage).toHaveBeenCalledWith('方案A', { resume: 'sdk-uuid', model: 'kimi' });
+      expect(agentService.sendMessage).toHaveBeenCalledWith('方案A', {
+        resume: 'sdk-uuid',
+        model: 'kimi',
+        partitionKey: TEST_PARTITION,
+      });
     });
   });
 
@@ -553,31 +739,47 @@ describe('ChatService', () => {
     });
 
     it('应调用 query.interrupt()', async () => {
-      const _interrupt = vi.fn();
+      const interrupt = vi.fn();
       const mockGen = (async function* () {
+        yield { type: 'system', subtype: 'init', session_id: 'sdk-uuid-cancel' };
         await new Promise(() => {});
       })();
-      mockAgentService.sendMessage.mockResolvedValue(mockQueryResult(mockGen));
+      // 显式注入 interrupt，使 cancelResponse 能拿到同一个引用
+      mockAgentService.sendMessage.mockResolvedValue({ stream: mockGen, interrupt });
+      mockSessionService.create.mockResolvedValue({ id: 1, sdkSessionId: 'sdk-uuid-cancel', title: '新会话' });
 
-      void service.sendAndStream({ content: 'hi', onEvent: vi.fn() });
+      void service.sendAndStream({
+        content: 'hi',
+        projectName: 'project-a',
+        username: TEST_USERNAME,
+        onEvent: vi.fn(),
+      });
 
       await new Promise((resolve) => setTimeout(resolve, 0));
+      await service.cancelResponse('sdk-uuid-cancel');
 
-      await service.cancelResponse('sdk-uuid-new'); // doesn't match the key used in activeQueries
-      // For first message, there's no sdkSessionId before init, so let me adjust
+      expect(interrupt).toHaveBeenCalled();
     });
   });
 
   describe('getSessionMessages', () => {
-    it('应委托给 AgentService', async () => {
+    it('应校验所有者并按分区委托给 AgentService', async () => {
+      mockSessionService.getBySdkSessionId.mockResolvedValue(makeSession());
       mockAgentService.getSessionMessages.mockResolvedValue([
         { role: 'user', content: [{ type: 'text', text: 'hello' }] },
       ]);
 
-      const result = await service.getSessionMessages('sdk-uuid');
+      const result = await service.getSessionMessages('sdk-uuid', TEST_USERNAME);
 
       expect(result).toHaveLength(1);
-      expect(agentService.getSessionMessages).toHaveBeenCalledWith('sdk-uuid');
+      expect(agentService.getSessionMessages).toHaveBeenCalledWith('sdk-uuid', TEST_PARTITION);
+    });
+
+    it('非所有者读取历史应抛 404', async () => {
+      mockSessionService.getBySdkSessionId.mockResolvedValue(makeSession());
+
+      await expect(service.getSessionMessages('sdk-uuid', 'other')).rejects.toThrow(NotFoundException);
+      expect(agentService.getSessionMessages).not.toHaveBeenCalled();
     });
   });
 });

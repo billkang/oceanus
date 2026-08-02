@@ -19,8 +19,15 @@ export class ChatRequestDto {
   @IsOptional()
   sessionId?: string;
 
+  @IsString()
   @IsOptional()
-  projectId?: string | number;
+  @IsNotEmpty()
+  @ApiProperty({
+    example: 'project-a',
+    description: '项目 projectName（新会话首条消息必传，用于成员校验 + 分区）',
+    required: false,
+  })
+  projectName?: string;
 
   @IsString()
   @IsOptional()

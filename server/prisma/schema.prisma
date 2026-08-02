@@ -12,28 +12,46 @@ model User {
   id          Int      @id @default(autoincrement())
   username    String   @unique
   password    String
-  displayName String?
+  displayName String
   active      Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  projectMembers ProjectMember[]
 
   @@map("users")
 }
 
 /// 项目
 model Project {
-  id          Int       @id @default(autoincrement())
-  uuid        String    @unique @default(uuid())
-  name        String
+  id          Int      @id @default(autoincrement())
+  uuid        String   @unique @default(uuid())
+  projectName String @unique
+  displayName String
   description String?
-  active      Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   sessions Session[]
   assets   Asset[]
+  members  ProjectMember[]
 
   @@map("projects")
+}
+
+/// 项目成员（username 自然键 FK）
+model ProjectMember {
+  id        Int      @id @default(autoincrement())
+  projectId Int
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  username  String
+  user      User     @relation(fields: [username], references: [username], onDelete: Cascade)
+  role      String   @default("member") // owner | member
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, username])
+  @@map("project_members")
 }
 
 /// 会话
@@ -43,7 +61,7 @@ model Session {
   sdkSessionId  String   @unique @map("sdk_session_id")
   title         String   @default("新会话")
   status        String   @default("active")
-  filePath      String?
+  username      String
   lastMessageAt DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -54,6 +72,22 @@ model Session {
   assets Asset[]
 
   @@map("sessions")
+}
+
+/// 会话记录镜像（Claude SDK 外部会话存储）
+/// 不设 FK（规避 SDK append 先于 Session 懒创建的时序竞态），删除靠服务层 $transaction
+/// uuid：SDK entry 自带幂等键，append 去重防重试产生重复行
+model SessionEntry {
+  id           BigInt   @id @default(autoincrement())
+  uuid         String?
+  partitionKey String
+  sessionId    String
+  subpath      String?
+  entry        Json
+  createdAt    DateTime @default(now())
+
+  @@index([partitionKey, sessionId, subpath, id])
+  @@map("claude_session_entries")
 }
 
 /// 资产（PRD / Jira Task）

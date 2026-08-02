@@ -6,7 +6,7 @@ export class UpdateProjectDto {
   @IsOptional()
   @IsString()
   @MinLength(1)
-  name?: string;
+  displayName?: string;
 
   @ApiProperty({ example: '更新后的备注', description: '备注', required: false })
   @IsOptional()

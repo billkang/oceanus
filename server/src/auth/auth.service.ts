@@ -33,7 +33,7 @@ export class AuthService {
       user: {
         id: user.id,
         username: user.username,
-        displayName: user.displayName || user.username,
+        displayName: user.displayName,
       },
     };
   }

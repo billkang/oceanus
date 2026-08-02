@@ -7,6 +7,7 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
 import { BadRequestException } from '@nestjs/common';
 import { Logger } from 'nestjs-pino';
 import { AgentService } from './agent.service';
+import { PrismaSessionStore } from './stores/prisma.store';
 import type { ConfigService } from '@nestjs/config';
 import * as sdk from '@anthropic-ai/claude-agent-sdk';
 import { LangfuseService } from '../common/langfuse/langfuse.service';
@@ -41,6 +42,11 @@ const mockKeyPool = {
   getPoolStats: vi.fn(),
   getKeyCount: vi.fn().mockReturnValue(1),
 };
+
+// 会话分区键（createStore 仅持有引用，不触发 DB 调用）
+const TEST_PARTITION = 'test/admin';
+// Prisma mock：createStore 构造 store 时不调用任何 prisma 方法
+const mockPrisma = {} as never;
 
 // 模型注册表 mock — 默认 deepseek（keyPool），kimi（env Key）
 const deepseekProvider: ResolvedProvider = {
@@ -97,13 +103,14 @@ describe('AgentService', () => {
         nullLangfuse,
         mockKeyPool as any,
         createMockRegistry(),
+        mockPrisma,
       );
       expect(service.isAvailable()).toBe(true);
     });
 
     it('注册表不可用时返回 false', () => {
       const registry = createMockRegistry({ isAvailable: vi.fn().mockReturnValue(false) });
-      const service = new AgentService(mockLogger, mockConfig(), nullLangfuse, mockKeyPool as any, registry);
+      const service = new AgentService(mockLogger, mockConfig(), nullLangfuse, mockKeyPool as any, registry, mockPrisma);
       expect(service.isAvailable()).toBe(false);
     });
   });
@@ -116,6 +123,7 @@ describe('AgentService', () => {
         nullLangfuse,
         mockKeyPool as any,
         createMockRegistry(),
+        mockPrisma,
       );
       expect(service.getAgentLimits()).toEqual({ maxTurns: 15, maxBudgetUsd: 1.0 });
       expect(mockLogger.warn).not.toHaveBeenCalledWith(expect.stringContaining('AGENT_MAX_TURNS'));
@@ -124,7 +132,7 @@ describe('AgentService', () => {
 
     it('空值 / 非数字 / 0 / 负数应回退默认', () => {
       const config = mockEnvConfig({ AGENT_MAX_TURNS: 'abc', AGENT_MAX_BUDGET_USD: '0' });
-      const service = new AgentService(mockLogger, config, nullLangfuse, mockKeyPool as any, createMockRegistry());
+      const service = new AgentService(mockLogger, config, nullLangfuse, mockKeyPool as any, createMockRegistry(), mockPrisma);
       expect(service.getAgentLimits()).toEqual({ maxTurns: 15, maxBudgetUsd: 1.0 });
       expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('AGENT_MAX_TURNS'));
       expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('AGENT_MAX_BUDGET_USD'));
@@ -132,13 +140,13 @@ describe('AgentService', () => {
 
     it('合法值应生效', () => {
       const config = mockEnvConfig({ AGENT_MAX_TURNS: '20', AGENT_MAX_BUDGET_USD: '2.5' });
-      const service = new AgentService(mockLogger, config, nullLangfuse, mockKeyPool as any, createMockRegistry());
+      const service = new AgentService(mockLogger, config, nullLangfuse, mockKeyPool as any, createMockRegistry(), mockPrisma);
       expect(service.getAgentLimits()).toEqual({ maxTurns: 20, maxBudgetUsd: 2.5 });
     });
 
     it('maxTurns 非整数（15.5）应视为非法回退默认', () => {
       const config = mockEnvConfig({ AGENT_MAX_TURNS: '15.5', AGENT_MAX_BUDGET_USD: '2.5' });
-      const service = new AgentService(mockLogger, config, nullLangfuse, mockKeyPool as any, createMockRegistry());
+      const service = new AgentService(mockLogger, config, nullLangfuse, mockKeyPool as any, createMockRegistry(), mockPrisma);
       expect(service.getAgentLimits()).toEqual({ maxTurns: 15, maxBudgetUsd: 2.5 });
       expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('AGENT_MAX_TURNS'));
     });
@@ -156,8 +164,8 @@ describe('AgentService', () => {
         AGENT_MAX_TURNS: '20',
         AGENT_MAX_BUDGET_USD: '2.5',
       });
-      const service = new AgentService(mockLogger, config, nullLangfuse, mockKeyPool as any, createMockRegistry());
-      await service.sendMessage('hello');
+      const service = new AgentService(mockLogger, config, nullLangfuse, mockKeyPool as any, createMockRegistry(), mockPrisma);
+      await service.sendMessage('hello', { partitionKey: TEST_PARTITION });
 
       const queryOptions = vi.mocked(sdk.query).mock.calls[0][0].options;
       expect(queryOptions?.maxTurns).toBe(20);
@@ -185,8 +193,9 @@ describe('AgentService', () => {
         nullLangfuse,
         mockKeyPool as any,
         createMockRegistry(),
+        mockPrisma,
       );
-      const { stream } = await service.sendMessage('帮我分析需求');
+      const { stream } = await service.sendMessage('帮我分析需求', { partitionKey: TEST_PARTITION });
       const events: unknown[] = [];
       for await (const msg of stream) {
         events.push(msg);
@@ -211,8 +220,9 @@ describe('AgentService', () => {
         nullLangfuse,
         mockKeyPool as any,
         createMockRegistry(),
+        mockPrisma,
       );
-      await service.sendMessage('hello');
+      await service.sendMessage('hello', { partitionKey: TEST_PARTITION });
 
       const queryOptions = vi.mocked(sdk.query).mock.calls[0][0].options;
       expect(queryOptions?.continue).toBeUndefined();
@@ -236,8 +246,9 @@ describe('AgentService', () => {
         nullLangfuse,
         mockKeyPool as any,
         createMockRegistry(),
+        mockPrisma,
       );
-      await service.sendMessage('继续', { resume: 'sdk-uuid-abc' });
+      await service.sendMessage('继续', { resume: 'sdk-uuid-abc', partitionKey: TEST_PARTITION });
 
       const queryOptions = vi.mocked(sdk.query).mock.calls[0][0].options;
       expect(queryOptions?.resume).toBe('sdk-uuid-abc');
@@ -261,8 +272,9 @@ describe('AgentService', () => {
         nullLangfuse,
         mockKeyPool as any,
         createMockRegistry(),
+        mockPrisma,
       );
-      await service.sendMessage('hello');
+      await service.sendMessage('hello', { partitionKey: TEST_PARTITION });
 
       const queryOptions = vi.mocked(sdk.query).mock.calls[0][0].options;
       expect(queryOptions?.model).toBe('deepseek-v4-flash');
@@ -273,6 +285,30 @@ describe('AgentService', () => {
       });
       // 不再突变全局环境变量（无副作用残留）
       expect(process.env.ANTHROPIC_API_KEY).toBeUndefined();
+    });
+
+    it('query env 应包含指向临时目录的 CLAUDE_CONFIG_DIR（本地副本即弃）', async () => {
+      const mockGenerate = (async function* () {
+        yield {
+          type: 'stream_event' as const,
+          event: { type: 'content_block_start', content_block: { type: 'text', text: 'OK' } },
+        };
+      })();
+      vi.mocked(sdk.query).mockReturnValue(mockGenerate as any);
+
+      const service = new AgentService(
+        mockLogger,
+        mockConfig(),
+        nullLangfuse,
+        mockKeyPool as any,
+        createMockRegistry(),
+        mockPrisma,
+      );
+      await service.sendMessage('hello', { partitionKey: TEST_PARTITION });
+
+      const queryOptions = vi.mocked(sdk.query).mock.calls[0][0].options;
+      const env = queryOptions?.env as Record<string, string>;
+      expect(env?.CLAUDE_CONFIG_DIR).toContain('oceanus-agent-config');
     });
 
     it('指定 model=kimi 时使用 kimi 的 modelId 与 env', async () => {
@@ -290,8 +326,9 @@ describe('AgentService', () => {
         nullLangfuse,
         mockKeyPool as any,
         createMockRegistry(),
+        mockPrisma,
       );
-      await service.sendMessage('hello', { model: 'kimi' });
+      await service.sendMessage('hello', { model: 'kimi', partitionKey: TEST_PARTITION });
 
       const queryOptions = vi.mocked(sdk.query).mock.calls[0][0].options;
       expect(queryOptions?.model).toBe('kimi-k2.7-code');
@@ -304,18 +341,18 @@ describe('AgentService', () => {
 
     it('注册表不可用时抛出 AI 服务未配置', async () => {
       const registry = createMockRegistry({ isAvailable: vi.fn().mockReturnValue(false) });
-      const service = new AgentService(mockLogger, mockConfig(), nullLangfuse, mockKeyPool as any, registry);
+      const service = new AgentService(mockLogger, mockConfig(), nullLangfuse, mockKeyPool as any, registry, mockPrisma);
 
-      await expect(service.sendMessage('hello')).rejects.toThrow('AI 服务未配置');
+      await expect(service.sendMessage('hello', { partitionKey: TEST_PARTITION })).rejects.toThrow('AI 服务未配置');
     });
 
     it('resolveProvider 未知模型抛 BadRequestException 时向上传播', async () => {
       const registry = createMockRegistry({
         resolveProvider: vi.fn().mockRejectedValue(new BadRequestException('未知模型: x，可用: deepseek, kimi')),
       });
-      const service = new AgentService(mockLogger, mockConfig(), nullLangfuse, mockKeyPool as any, registry);
+      const service = new AgentService(mockLogger, mockConfig(), nullLangfuse, mockKeyPool as any, registry, mockPrisma);
 
-      await expect(service.sendMessage('hello', { model: 'x' })).rejects.toBeInstanceOf(BadRequestException);
+      await expect(service.sendMessage('hello', { model: 'x', partitionKey: TEST_PARTITION })).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('keyPool 来源 provider 调用失败时标记 Key 故障', async () => {
@@ -329,8 +366,9 @@ describe('AgentService', () => {
         nullLangfuse,
         mockKeyPool as any,
         createMockRegistry(),
+        mockPrisma,
       );
-      await expect(service.sendMessage('hello')).rejects.toThrow('boom');
+      await expect(service.sendMessage('hello', { partitionKey: TEST_PARTITION })).rejects.toThrow('boom');
       expect(mockKeyPool.markFailure).toHaveBeenCalledWith('pool-key-1');
     });
 
@@ -345,8 +383,9 @@ describe('AgentService', () => {
         nullLangfuse,
         mockKeyPool as any,
         createMockRegistry(),
+        mockPrisma,
       );
-      await expect(service.sendMessage('hello', { model: 'kimi' })).rejects.toThrow('boom');
+      await expect(service.sendMessage('hello', { model: 'kimi', partitionKey: TEST_PARTITION })).rejects.toThrow('boom');
       expect(mockKeyPool.markFailure).not.toHaveBeenCalled();
     });
 
@@ -360,8 +399,8 @@ describe('AgentService', () => {
       vi.mocked(sdk.query).mockReturnValue(mockGenerate as any);
 
       const langfuse = createMockLangfuse();
-      const service = new AgentService(mockLogger, mockConfig(), langfuse, mockKeyPool as any, createMockRegistry());
-      await service.sendMessage('hello');
+      const service = new AgentService(mockLogger, mockConfig(), langfuse, mockKeyPool as any, createMockRegistry(), mockPrisma);
+      await service.sendMessage('hello', { partitionKey: TEST_PARTITION });
 
       const optionsArg = vi.mocked(sdk.query).mock.calls[0][0].options;
       expect((optionsArg as { hooks?: Record<string, unknown> }).hooks?.['SessionStart']).toBeDefined();
@@ -380,8 +419,8 @@ describe('AgentService', () => {
       vi.mocked(sdk.query).mockReturnValue(mockGenerate as any);
 
       const langfuse = createMockLangfuse();
-      const service = new AgentService(mockLogger, mockConfig(), langfuse, mockKeyPool as any, createMockRegistry());
-      await service.sendMessage('hello', { model: 'kimi' });
+      const service = new AgentService(mockLogger, mockConfig(), langfuse, mockKeyPool as any, createMockRegistry(), mockPrisma);
+      await service.sendMessage('hello', { model: 'kimi', partitionKey: TEST_PARTITION });
 
       const optionsArg = vi.mocked(sdk.query).mock.calls[0][0].options;
       const sessionStartHooks = (
@@ -406,8 +445,9 @@ describe('AgentService', () => {
         nullLangfuse,
         mockKeyPool as any,
         createMockRegistry(),
+        mockPrisma,
       );
-      const result = await service.getSessionMessages('session-uuid');
+      const result = await service.getSessionMessages('session-uuid', TEST_PARTITION);
 
       expect(result).toHaveLength(1);
       expect(sdk.getSessionMessages).toHaveBeenCalledWith('session-uuid', expect.any(Object));
@@ -424,10 +464,41 @@ describe('AgentService', () => {
         nullLangfuse,
         mockKeyPool as any,
         createMockRegistry(),
+        mockPrisma,
       );
-      await service.destroyAgent('session-uuid');
+      await service.destroyAgent('session-uuid', TEST_PARTITION);
 
       expect(sdk.deleteSession).toHaveBeenCalledWith('session-uuid', expect.any(Object));
+    });
+  });
+
+  describe('createStore', () => {
+    it('返回分区键固化的 PrismaSessionStore', () => {
+      const service = new AgentService(
+        mockLogger,
+        mockConfig(),
+        nullLangfuse,
+        mockKeyPool as any,
+        createMockRegistry(),
+        mockPrisma,
+      );
+      const store = service.createStore('project-a/bill');
+      expect(store).toBeInstanceOf(PrismaSessionStore);
+      expect((store as unknown as { partitionKey: string }).partitionKey).toBe('project-a/bill');
+    });
+  });
+
+  describe('sendMessage 分区防护', () => {
+    it('缺少 partitionKey 时抛错', async () => {
+      const service = new AgentService(
+        mockLogger,
+        mockConfig(),
+        nullLangfuse,
+        mockKeyPool as any,
+        createMockRegistry(),
+        mockPrisma,
+      );
+      await expect(service.sendMessage('hello')).rejects.toThrow('缺少会话分区键 partitionKey');
     });
   });
 });

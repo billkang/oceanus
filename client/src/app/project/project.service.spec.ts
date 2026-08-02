@@ -25,7 +25,7 @@ describe('ProjectService', () => {
 
   it('list 应 GET /api/v1/projects', () => {
     const mockProjects = [
-      { id: 1, name: '项目1', sessionCount: 3, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-02T00:00:00Z' },
+      { id: 1, projectName: 'project-a', displayName: '项目1', sessionCount: 3, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-02T00:00:00Z' },
     ];
 
     service.list().subscribe((res) => {
@@ -38,18 +38,27 @@ describe('ProjectService', () => {
   });
 
   it('create 应 POST /api/v1/projects', () => {
-    service.create({ name: '新项目', description: '备注' }).subscribe();
+    service.create({ displayName: '新项目', projectName: 'project-a', description: '备注' }).subscribe();
 
     const req = httpMock.expectOne('/api/v1/projects');
     expect(req.request.method).toBe('POST');
-    expect(req.request.body).toEqual({ name: '新项目', description: '备注' });
-    req.flush({ id: 1, name: '新项目' });
+    expect(req.request.body).toEqual({ displayName: '新项目', projectName: 'project-a', description: '备注' });
+    req.flush({ id: 1, projectName: 'project-a', displayName: '新项目' });
   });
 
-  it('delete 应 DELETE /api/v1/projects/:id', () => {
-    service.delete(1).subscribe();
+  it('update 应 PATCH /api/v1/projects/:projectName', () => {
+    service.update('project-a', { displayName: '新名称', description: '新描述' }).subscribe();
 
-    const req = httpMock.expectOne('/api/v1/projects/1');
+    const req = httpMock.expectOne('/api/v1/projects/project-a');
+    expect(req.request.method).toBe('PATCH');
+    expect(req.request.body).toEqual({ displayName: '新名称', description: '新描述' });
+    req.flush({ id: 1, projectName: 'project-a', displayName: '新名称' });
+  });
+
+  it('delete 应 DELETE /api/v1/projects/:projectName', () => {
+    service.delete('project-a').subscribe();
+
+    const req = httpMock.expectOne('/api/v1/projects/project-a');
     expect(req.request.method).toBe('DELETE');
     req.flush({});
   });

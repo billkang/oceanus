@@ -75,8 +75,8 @@
             class="group bg-white/70 backdrop-blur-sm border border-indigo-100/50 rounded-2xl p-5 hover:shadow-xl hover:shadow-indigo-500/5 hover:border-indigo-200 transition-all duration-300 cursor-pointer"
             tabindex="0"
             role="button"
-            (click)="enterProject(project.id)"
-            (keydown.enter)="enterProject(project.id)"
+            (click)="enterProject(project.projectName)"
+            (keydown.enter)="enterProject(project.projectName)"
           >
             <div class="flex items-start justify-between">
               <div class="flex items-start gap-3 min-w-0">
@@ -100,7 +100,7 @@
                   </svg>
                 </div>
                 <div class="min-w-0">
-                  <h3 class="font-semibold text-gray-900 truncate">{{ project.name }}</h3>
+                  <h3 class="font-semibold text-gray-900 truncate">{{ project.displayName }}</h3>
                   @if (project.description) {
                     <p class="text-sm text-gray-500 mt-1 line-clamp-2">{{ project.description }}</p>
                   } @else {
@@ -121,7 +121,7 @@
                   ariaLabel="编辑项目"
                 />
                 <p-button
-                  (onClick)="deleteProject(project.id, $event)"
+                  (onClick)="deleteProject(project.projectName, $event)"
                   icon="pi pi-trash"
                   [text]="true"
                   [rounded]="true"
@@ -153,18 +153,31 @@
 >
   <div class="space-y-4">
     <div class="w-full">
-      <label class="block text-sm font-medium text-gray-700 mb-1.5" for="project-name">项目名称</label>
+      <label class="block text-sm font-medium text-gray-700 mb-1.5" for="project-display-name">displayName（项目名称）</label>
       <input
-        id="project-name"
+        id="project-display-name"
         pInputText
         class="w-full !rounded-xl"
         [class.!border-red-400]="createError()"
-        [formField]="createForm.name"
+        [formField]="createForm.displayName"
         placeholder="例如：用户画像2.0"
       />
       @if (createError()) {
         <p class="mt-1 text-xs text-red-500">{{ createError() }}</p>
       }
+    </div>
+
+    <div class="w-full">
+      <label class="block text-sm font-medium text-gray-700 mb-1.5" for="project-name-en">projectName（唯一标识）</label>
+      <input
+        id="project-name-en"
+        pInputText
+        class="w-full !rounded-xl"
+        [class.!border-red-400]="createError()"
+        [formField]="createForm.projectName"
+        placeholder="例如：user-profile-2"
+      />
+      <p class="mt-1 text-xs text-gray-400">仅允许小写字母、数字、-、_，作为项目在 URL 中的唯一标识</p>
     </div>
 
     <div class="w-full">
@@ -183,7 +196,7 @@
       <p-button
         (onClick)="createProject()"
         label="创建项目"
-        [disabled]="!createModel().name.trim() || creating()"
+        [disabled]="!createModel().displayName.trim() || !createModel().projectName.trim() || creating()"
         styleClass="!rounded-xl !bg-gradient-to-r !from-indigo-500 !to-violet-500
           !text-white !border-0 hover:!from-indigo-400 hover:!to-violet-400
           !shadow-lg !shadow-indigo-500/20"
@@ -205,13 +218,13 @@
 >
   <div class="space-y-4">
     <div class="w-full">
-      <label class="block text-sm font-medium text-gray-700 mb-1.5" for="edit-project-name">项目名称</label>
+      <label class="block text-sm font-medium text-gray-700 mb-1.5" for="edit-project-display-name">displayName（项目名称）</label>
       <input
-        id="edit-project-name"
+        id="edit-project-display-name"
         pInputText
         class="w-full !rounded-xl"
         [class.!border-red-400]="editError()"
-        [formField]="editForm.name"
+        [formField]="editForm.displayName"
         placeholder="例如：用户画像2.0"
       />
       @if (editError()) {
@@ -235,7 +248,7 @@
       <p-button
         (onClick)="saveEditProject()"
         label="保存修改"
-        [disabled]="!editModel().name.trim() || saving()"
+        [disabled]="!editModel().displayName.trim() || saving()"
         styleClass="!rounded-xl !bg-gradient-to-r !from-indigo-500 !to-violet-500
           !text-white !border-0 hover:!from-indigo-400 hover:!to-violet-400
           !shadow-lg !shadow-indigo-500/20"

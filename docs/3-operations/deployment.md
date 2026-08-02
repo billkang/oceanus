@@ -17,8 +17,19 @@
 ## 相关配置
 
 - 环境变量：`LOG_LEVEL`（日志级别）、`OTEL_COLLECTOR_URL`（OTel Collector 地址）
-- 数据库迁移：Prisma migrate
-- CI/CD 流水线：
+- 数据库迁移：Prisma migrate / `prisma db push`（开发与 CI）
+- CI/CD 流水线：GitHub Actions（`.github/workflows/ci.yml`），lint → typecheck → test → build
+
+### CI 测试数据库依赖
+
+`test` job 为 server 过滤矩阵启动 `postgres:16` 服务，并设置 `DATABASE_URL=postgresql://root:123456@localhost:5432/oceanus`。
+
+集成测试（如 `server/src/agent/stores/prisma.store.spec.ts`，依赖真实 Postgres）依赖该服务：
+1. `prisma generate` — 生成 client 类型
+2. `prisma db push --skip-generate` — 按 `server/prisma/schema.prisma` 建表
+3. `vitest run` — 执行测试
+
+> 修改 CI 配置后同步更新本节。
 
 ## 可观测性
 

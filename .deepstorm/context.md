@@ -1,7 +1,7 @@
 # 项目上下文地图
 
 > AI 消费的紧凑摘要 | 人工详档见 `docs/`
-> 更新: 2026-08-01
+> 更新: 2026-08-02
 
 ---
 
@@ -9,7 +9,7 @@
 
 - **后端**：TypeScript / NestJS 11
 - **前端**：Angular 21 + PrimeNG 21 + Tailwind CSS 4
-- **ORM**：Prisma 6 + PostgreSQL 17（4 表：users / projects / sessions / assets）
+- **ORM**：Prisma 6 + PostgreSQL 17（6 表：users / projects / project_members / sessions / claude_session_entries / assets）
 - **AI 引擎**：Claude Agent SDK（TypeScript）
 - **AI 模型**：多模型注册（已实现，主 spec：`openspec/specs/model-registry`）：`server/config/models.yaml` 注册多 provider（DeepSeek / Kimi，含 `enabled` 开关），前端手动选择（`GET /models`），后端经 `query()` 的 `model` + `env` 逐调用切换；Key 走 per-provider 环境变量 / `apiKeyEnv_N` 独立池，全局 `ANTHROPIC_*` 已废弃
 - **实时通信**：SSE
@@ -22,7 +22,7 @@
 | ------------- | ----------------------------------- | ------------------------------------------------------ |
 | Auth          | `backend/src/auth`                  | 测试账号 JWT 登录                                      |
 | Project       | `backend/src/project`               | 项目 CRUD                                              |
-| Session       | `backend/src/session`               | 会话管理 + 级联清理                                    |
+| Session       | `backend/src/session`               | 会话管理 + `partitionKey = projectName/username` 分区隔离 + 事务级联清理 |
 | Chat          | `backend/src/chat`                  | 消息转发 + SSE + 请求队列 + KeyPool                    |
 | Agent         | `backend/src/agent`                 | Claude Agent SDK 封装                                  |
 | ModelRegistry | `backend/src/common/model-registry` | 多 provider 注册（models.yaml）+ Key 解析 + 可用性判定 |
@@ -37,28 +37,29 @@ graph TD
     Backend -->|query/resume| SDK[Claude Agent SDK]
     SDK -->|env override| AI[国产模型 API]
     Backend -->|Prisma| DB[(PostgreSQL)]
-    SDK -->|JSONL| File[(JSONL 文件)]
+    SDK -->|PrismaSessionStore| DB
 ```
 
 ## 架构决策索引
 
 所有 ADR 已移至独立文件：`docs/2-architecture/decisions/`
 
-| ADR     | 标题                   | 状态 |
-| ------- | ---------------------- | ---- |
-| ADR-001 | 消息存储与数据库策略   | ✅   |
-| ADR-002 | AI 引擎选型            | ✅   |
-| ADR-003 | 并发控制架构           | ✅   |
-| ADR-004 | 可观测性与日志方案     | ✅   |
-| ADR-005 | 前端技术栈             | ✅   |
-| ADR-006 | 后端框架选型           | ✅   |
-| ADR-007 | MVP 认证策略           | ✅   |
-| ADR-008 | 会话连续性与 UI 保护   | ✅   |
-| ADR-009 | Skills 注册机制        | ✅   |
-| ADR-010 | 工程基础设施与容器化   | ✅   |
-| ADR-011 | SigNoz 日志方案        | ✅   |
-| ADR-012 | 轮次与预算上限管控     | ✅   |
-| ADR-013 | 多模型注册与运行时切换 | ✅   |
+| ADR     | 标题                              | 状态        |
+| ------- | --------------------------------- | ----------- |
+| ADR-001 | 消息存储与数据库策略              | ⚠️ 被 ADR-014 取代 |
+| ADR-002 | AI 引擎选型                       | ✅          |
+| ADR-003 | 并发控制架构                      | ✅          |
+| ADR-004 | 可观测性与日志方案                | ✅          |
+| ADR-005 | 前端技术栈                        | ✅          |
+| ADR-006 | 后端框架选型                      | ✅          |
+| ADR-007 | MVP 认证策略                      | ✅          |
+| ADR-008 | 会话连续性与 UI 保护              | ✅          |
+| ADR-009 | Skills 注册机制                   | ✅          |
+| ADR-010 | 工程基础设施与容器化              | ✅          |
+| ADR-011 | SigNoz 日志方案                   | ✅          |
+| ADR-012 | 轮次与预算上限管控                | ✅          |
+| ADR-013 | 多模型注册与运行时切换            | ✅          |
+| ADR-014 | 会话消息落库 SessionEntry + 分区隔离 | ✅       |
 
 ## 外部引用
 

@@ -4,15 +4,24 @@ import type { Observable } from 'rxjs';
 
 export interface Project {
   id: number;
-  name: string;
+  projectName: string;
+  displayName: string;
   description: string | null;
   sessionCount: number;
+  role?: 'owner' | 'member';
   createdAt: string;
   updatedAt: string;
 }
 
 export interface CreateProjectDto {
-  name: string;
+  displayName: string;
+  projectName: string;
+  description?: string;
+}
+
+/** 编辑项目（projectName 不可改，仅 displayName/description） */
+export interface UpdateProjectDto {
+  displayName?: string;
   description?: string;
 }
 
@@ -24,19 +33,19 @@ export class ProjectService {
     return this.http.get<Project[]>('/api/v1/projects');
   }
 
-  getById(id: number): Observable<Project> {
-    return this.http.get<Project>(`/api/v1/projects/${id}`);
+  getById(projectName: string): Observable<Project> {
+    return this.http.get<Project>(`/api/v1/projects/${projectName}`);
   }
 
   create(dto: CreateProjectDto): Observable<Project> {
     return this.http.post<Project>('/api/v1/projects', dto);
   }
 
-  update(id: number, dto: CreateProjectDto): Observable<Project> {
-    return this.http.put<Project>(`/api/v1/projects/${id}`, dto);
+  update(projectName: string, dto: UpdateProjectDto): Observable<Project> {
+    return this.http.patch<Project>(`/api/v1/projects/${projectName}`, dto);
   }
 
-  delete(id: number): Observable<void> {
-    return this.http.delete<void>(`/api/v1/projects/${id}`);
+  delete(projectName: string): Observable<void> {
+    return this.http.delete<void>(`/api/v1/projects/${projectName}`);
   }
 }

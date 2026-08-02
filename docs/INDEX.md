@@ -18,7 +18,7 @@
 | [系统架构总览](2-architecture/overview.md) | 模块划分、分层架构、数据流    |
 | [数据模型](2-architecture/data-model.md)   | Prisma schema、表关系         |
 | [API 参考](3-api/api-reference.md)         | 聊天端点、模型列表、会话历史  |
-| [架构决策记录](2-architecture/decisions/)  | ADR 索引（ADR-001 ~ ADR-013） |
+| [架构决策记录](2-architecture/decisions/)  | ADR 索引（ADR-001 ~ ADR-014） |
 
 ## ⚙️ 运维
 

@@ -8,6 +8,8 @@ describe('AssetService', () => {
   let service: AssetService;
   let prisma: PrismaService;
 
+  const OWNER = 'admin';
+
   const mockAssets = [
     {
       id: 1,
@@ -33,6 +35,13 @@ describe('AssetService', () => {
     },
   ];
 
+  /** 带 session 投影的资产（assertOwned 的 findUnique include 返回） */
+  const ownedAsset = (overrides: Record<string, unknown> = {}) => ({
+    ...mockAssets[0],
+    session: { username: OWNER },
+    ...overrides,
+  });
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -45,6 +54,9 @@ describe('AssetService', () => {
               findUnique: vi.fn(),
               findFirst: vi.fn(),
               create: vi.fn(),
+            },
+            session: {
+              findUnique: vi.fn(),
             },
           },
         },
@@ -60,11 +72,16 @@ describe('AssetService', () => {
   });
 
   describe('listBySession', () => {
-    it('应返回会话下的资产列表', async () => {
+    it('会话所有者应返回资产列表', async () => {
+      vi.mocked(prisma.session.findUnique).mockResolvedValue({ username: OWNER } as any);
       vi.mocked(prisma.asset.findMany).mockResolvedValue(mockAssets);
 
-      const result = await service.listBySession(10);
+      const result = await service.listBySession(10, OWNER);
 
+      expect(prisma.session.findUnique).toHaveBeenCalledWith({
+        where: { id: 10 },
+        select: { username: true },
+      });
       expect(result).toEqual(mockAssets);
       expect(prisma.asset.findMany).toHaveBeenCalledWith({
         where: { sessionId: 10 },
@@ -73,11 +90,25 @@ describe('AssetService', () => {
     });
 
     it('空会话应返回空数组', async () => {
+      vi.mocked(prisma.session.findUnique).mockResolvedValue({ username: OWNER } as any);
       vi.mocked(prisma.asset.findMany).mockResolvedValue([]);
 
-      const result = await service.listBySession(999);
+      const result = await service.listBySession(999, OWNER);
 
       expect(result).toEqual([]);
+    });
+
+    it('非会话所有者应抛 404 且不查询资产', async () => {
+      vi.mocked(prisma.session.findUnique).mockResolvedValue({ username: 'other' } as any);
+
+      await expect(service.listBySession(10, OWNER)).rejects.toThrow(NotFoundException);
+      expect(prisma.asset.findMany).not.toHaveBeenCalled();
+    });
+
+    it('会话不存在应抛 404', async () => {
+      vi.mocked(prisma.session.findUnique).mockResolvedValue(null);
+
+      await expect(service.listBySession(999, OWNER)).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -150,29 +181,36 @@ describe('AssetService', () => {
   });
 
   describe('getById', () => {
-    it('应返回资产详情', async () => {
-      vi.mocked(prisma.asset.findUnique).mockResolvedValue(mockAssets[0]);
+    it('资产所有者应返回详情（不含 session 投影）', async () => {
+      vi.mocked(prisma.asset.findUnique).mockResolvedValue(ownedAsset());
 
-      const result = await service.getById(1);
+      const result = await service.getById(1, OWNER);
 
       expect(result).toEqual(mockAssets[0]);
       expect(prisma.asset.findUnique).toHaveBeenCalledWith({
         where: { id: 1 },
+        include: { session: { select: { username: true } } },
       });
     });
 
     it('资产不存在时应抛出 NotFoundException', async () => {
       vi.mocked(prisma.asset.findUnique).mockResolvedValue(null);
 
-      await expect(service.getById(999)).rejects.toThrow(NotFoundException);
+      await expect(service.getById(999, OWNER)).rejects.toThrow(NotFoundException);
+    });
+
+    it('非资产所有者应抛 404', async () => {
+      vi.mocked(prisma.asset.findUnique).mockResolvedValue(ownedAsset({ session: { username: 'other' } }));
+
+      await expect(service.getById(1, OWNER)).rejects.toThrow(NotFoundException);
     });
   });
 
   describe('getContent', () => {
-    it('应返回资产内容文本', async () => {
-      vi.mocked(prisma.asset.findUnique).mockResolvedValue(mockAssets[0]);
+    it('资产所有者应返回内容文本', async () => {
+      vi.mocked(prisma.asset.findUnique).mockResolvedValue(ownedAsset());
 
-      const result = await service.getContent(1);
+      const result = await service.getContent(1, OWNER);
 
       expect(result).toBe(mockAssets[0].content);
     });
@@ -180,15 +218,21 @@ describe('AssetService', () => {
     it('资产不存在时应抛出 NotFoundException', async () => {
       vi.mocked(prisma.asset.findUnique).mockResolvedValue(null);
 
-      await expect(service.getContent(999)).rejects.toThrow(NotFoundException);
+      await expect(service.getContent(999, OWNER)).rejects.toThrow(NotFoundException);
+    });
+
+    it('非资产所有者应抛 404', async () => {
+      vi.mocked(prisma.asset.findUnique).mockResolvedValue(ownedAsset({ session: { username: 'other' } }));
+
+      await expect(service.getContent(1, OWNER)).rejects.toThrow(NotFoundException);
     });
   });
 
   describe('download', () => {
-    it('应返回资产标题和内容', async () => {
-      vi.mocked(prisma.asset.findUnique).mockResolvedValue(mockAssets[0]);
+    it('资产所有者应返回资产标题和内容', async () => {
+      vi.mocked(prisma.asset.findUnique).mockResolvedValue(ownedAsset());
 
-      const result = await service.download(1);
+      const result = await service.download(1, OWNER);
 
       expect(result).toEqual({
         title: '用户登录 PRD',
@@ -200,7 +244,13 @@ describe('AssetService', () => {
     it('资产不存在时应抛出 NotFoundException', async () => {
       vi.mocked(prisma.asset.findUnique).mockResolvedValue(null);
 
-      await expect(service.download(999)).rejects.toThrow(NotFoundException);
+      await expect(service.download(999, OWNER)).rejects.toThrow(NotFoundException);
+    });
+
+    it('非资产所有者应抛 404', async () => {
+      vi.mocked(prisma.asset.findUnique).mockResolvedValue(ownedAsset({ session: { username: 'other' } }));
+
+      await expect(service.download(1, OWNER)).rejects.toThrow(NotFoundException);
     });
   });
 });

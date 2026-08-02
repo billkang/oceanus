@@ -24,10 +24,10 @@ describe('SessionService', () => {
     httpMock.verify();
   });
 
-  it('listByProject 应 GET /api/v1/projects/:id/sessions', () => {
-    service.listByProject(1).subscribe();
+  it('listByProject 应 GET /api/v1/projects/:projectName/sessions', () => {
+    service.listByProject('project-a').subscribe();
 
-    const req = httpMock.expectOne('/api/v1/projects/1/sessions');
+    const req = httpMock.expectOne('/api/v1/projects/project-a/sessions');
     expect(req.request.method).toBe('GET');
     req.flush([]);
   });

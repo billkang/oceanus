@@ -155,7 +155,8 @@ export class SessionListComponent {
   private readonly confirmationService = inject(ConfirmationService);
   private readonly notificationService = inject(NotificationService);
 
-  readonly projectId = input(0);
+  /** 项目 projectName，用于加载该项目下会话列表 */
+  readonly projectName = input('');
   readonly create = output<void>();
   readonly sessionSelect = output<string>();
   readonly sessionRemoved = output<string>();
@@ -167,8 +168,7 @@ export class SessionListComponent {
 
   constructor() {
     effect(() => {
-      const pid = this.projectId();
-      if (pid > 0) {
+      if (this.projectName()) {
         this.loadSessions();
       }
     });
@@ -184,7 +184,7 @@ export class SessionListComponent {
 
   loadSessions(): void {
     this.loading.set(true);
-    this.sessionService.listByProject(this.projectId()).subscribe({
+    this.sessionService.listByProject(this.projectName()).subscribe({
       next: (data) => {
         this.sessions.set(data);
         this.loading.set(false);

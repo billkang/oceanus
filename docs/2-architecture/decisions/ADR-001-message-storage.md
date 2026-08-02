@@ -1,10 +1,13 @@
 ---
-status: accepted
+status: superseded
 date: 2026-07-23
+superseded-by: ADR-014
 deciders: billkang
 ---
 
 # ADR-001: 消息存储与数据库策略
+
+> ⚠️ 已被 [ADR-014](ADR-014-session-partitioning.md) 取代：消息完整内容改由 Prisma `SessionEntry` 表管理，并按 `partitionKey = ${projectName}/${username}` 分区。本文档保留原决策历史。
 
 ## 背景
 

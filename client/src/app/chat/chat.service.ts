@@ -72,7 +72,8 @@ export class ChatService {
     options: {
       content: string;
       sessionId?: string;
-      projectId?: number;
+      /** 项目 projectName，新会话首条消息必传（成员校验 + 分区） */
+      projectName?: string;
       model?: string;
     } & SseStreamCallbacks,
   ): AbortController {
@@ -83,7 +84,7 @@ export class ChatService {
       content: options.content,
     };
     if (options.sessionId) body['sessionId'] = options.sessionId;
-    if (options.projectId) body['projectId'] = options.projectId;
+    if (options.projectName) body['projectName'] = options.projectName;
     if (options.model) body['model'] = options.model;
 
     this.readSseStream('/api/v1/chat', body, abortController, options);

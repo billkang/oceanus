@@ -101,7 +101,7 @@ describe('ChatService', () => {
       );
     });
 
-    it('projectId 存在时应传入 body', async () => {
+    it('projectName 存在时应传入 body', async () => {
       globalThis.fetch = vi.fn().mockResolvedValue({
         ok: true,
         body: sseStream('event: message_done\ndata: {"type":"message_done","data":{}}\n\n'),
@@ -110,7 +110,7 @@ describe('ChatService', () => {
       await new Promise<void>((resolve) => {
         service.sendMessage({
           content: '你好',
-          projectId: 1,
+          projectName: 'project-a',
           onEvent: () => {},
           onComplete: () => resolve(),
         });
@@ -119,7 +119,7 @@ describe('ChatService', () => {
       expect(globalThis.fetch).toHaveBeenCalledWith(
         '/api/v1/chat',
         expect.objectContaining({
-          body: JSON.stringify({ action: 'message', content: '你好', projectId: 1 }),
+          body: JSON.stringify({ action: 'message', content: '你好', projectName: 'project-a' }),
         }),
       );
     });

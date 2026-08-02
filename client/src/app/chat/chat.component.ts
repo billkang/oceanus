@@ -91,7 +91,8 @@ export class ChatComponent implements OnInit, OnDestroy {
   private readonly chatService = inject(ChatService);
 
   readonly sessionId = input<string>('');
-  readonly projectId = input(0);
+  /** 项目 projectName，新会话首条消息作为 projectName 传给后端（成员校验 + 分区） */
+  readonly projectName = input('');
   readonly assetReady = output<number>();
   readonly titleUpdated = output<{ sdkSessionId: string; title: string }>();
   readonly sessionCreated = output<string>();
@@ -450,7 +451,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.abortController = this.chatService.sendMessage({
       content: text,
       sessionId: this.activeSdkSessionId,
-      projectId: this.activeSdkSessionId ? undefined : this.projectId(),
+      projectName: this.activeSdkSessionId ? undefined : this.projectName(),
       model: this.selectedModel() || undefined,
       onEvent: (event) => {
         if (!userMsgCompleted) {
@@ -537,7 +538,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.abortController = this.chatService.sendMessage({
       content: text,
       sessionId: this.activeSdkSessionId,
-      projectId: this.activeSdkSessionId ? undefined : this.projectId(),
+      projectName: this.activeSdkSessionId ? undefined : this.projectName(),
       model: this.selectedModel() || undefined,
       onEvent: (event) => {
         if (!retryMsgCompleted) {
